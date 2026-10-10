@@ -409,6 +409,19 @@
     color: #2d3748;
 }
 
+/* Чья это панель — у сквозного случая, где кадров два и оба одной ширины.
+   ⚠ Моноширинным и с многоточием: это путь страницы, в нём различают `/` и
+   `_`, а длинный обрезается — целиком он есть подсказкой. */
+.e2e-shot-page {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: #4a5568;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 45%;
+}
+
 .e2e-shot-areas {
     margin-left: auto;
     color: #718096;

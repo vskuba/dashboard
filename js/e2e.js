@@ -137,10 +137,17 @@ function drawRows(rows) {
 
         const card = el('div', `e2e-card ${worst}`);
 
+        // Страниц в карточке больше одной — это сквозной случай: он снимает
+        // две панели, нашу и соседнюю. Тогда страница уходит с шапки на
+        // плитки, где она и отвечает на вопрос «который кадр чей».
+        const pages = [...new Set(group.map(row => row.page))];
+        const many = pages.length > 1;
+
         const head = el('div', 'e2e-card-head');
         head.append(el('span', 'e2e-card-name', name));
         head.append(badge(worst));
-        head.append(el('span', 'e2e-card-page', group[0].page));
+        head.append(el('span', 'e2e-card-page',
+            many ? `${pages.length} панели` : group[0].page));
         card.append(head);
 
         if (group[0].description) {
@@ -148,18 +155,32 @@ function drawRows(rows) {
         }
 
         const shots = el('div', 'e2e-shots');
-        group.sort((a, b) => a.width - b.width).forEach(row => shots.append(shotTile(row)));
+        // ⚠ Сортировка сперва по странице, потом по ширине: у сквозного случая
+        // кадры сторон обязаны стоять рядом, а не чередоваться по ширинам.
+        group.sort((a, b) => a.page.localeCompare(b.page) || a.width - b.width)
+            .forEach(row => shots.append(shotTile(row, many)));
         card.append(shots);
 
         listEl.append(card);
     });
 }
 
-function shotTile(row) {
+function shotTile(row, withPage) {
     const tile = el('div', 'e2e-shot');
 
     const bar = el('div', 'e2e-shot-bar');
     bar.append(el('span', 'e2e-shot-width', `${row.width}px`));
+    // ⚠⚠ Страница в подписи — только когда их в карточке несколько, то есть у
+    // сквозного случая (две панели). Иначе это второй отпечаток того, что уже
+    // стоит в шапке карточки, на каждой плитке.
+    //
+    // Без неё два кадра 1440px неразличимы: оба зелёные, оба одной ширины, а
+    // показывают РАЗНЫЕ установки — и понять, который чей, нельзя ничем.
+    if (withPage) {
+        const where = el('span', 'e2e-shot-page', row.page);
+        where.title = row.page;
+        bar.append(where);
+    }
     bar.append(badge(row.status));
     bar.append(el('span', 'e2e-shot-areas',
         row.areas_failed ? `${row.areas_failed} из ${row.areas_total}`
