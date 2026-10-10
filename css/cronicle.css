@@ -1,0 +1,205 @@
+/* Страница «Cronicle» — общая, лежит в submodule `dashboard`.
+   Чтобы отойти от общего вида, проект кладёт у себя `css/cronicle.css`:
+   раздача ищет свой каталог первым. */
+
+.cron-page {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    min-height: 0;
+}
+
+.cron-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #fafafa;
+    flex-shrink: 0;
+}
+
+.cron-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    color: #2d3748;
+}
+
+.cron-btn:hover {
+    background: #edf2f7;
+}
+
+.cron-count {
+    font-size: 12px;
+    color: #718096;
+    margin-left: auto;
+}
+
+.cron-body {
+    flex: 1;
+    overflow: auto;
+    padding: 14px 16px;
+    min-height: 0;
+}
+
+/* Состояние «ключа нет» — не ошибка, а инструкция: установка живёт без
+   ключа, пока его не завели. Поэтому не красный тост, а спокойная рамка. */
+.cron-note {
+    border: 1px solid #fbd38d;
+    background: #fffaf0;
+    color: #744210;
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+.cron-note code {
+    background: #fff;
+    border: 1px solid #f6e05e;
+    border-radius: 3px;
+    padding: 0 4px;
+    font-size: 12px;
+}
+
+.cron-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.cron-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #718096;
+    padding: 8px 10px;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.cron-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #edf2f7;
+    vertical-align: top;
+}
+
+/* ⚠ Слабину забирает ПЕРВАЯ колонка, а не последняя. Без этого авто-раскладка
+   отдавала её колонке «последний удачный», и между расписанием и датой
+   зияла пустота в треть экрана при обрезанных названиях событий. */
+.cron-table th:first-child,
+.cron-table td:first-child {
+    width: 100%;
+}
+
+.cron-table tr.off td {
+    color: #a0aec0;
+}
+
+.cron-title {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.cron-target {
+    font-family: monospace;
+    font-size: 11px;
+    color: #a0aec0;
+    margin-top: 2px;
+}
+
+/* Заметка события из Cronicle: то, ради чего раньше шли в его панель.
+   ⚠ Ширина ограничена: заметки бывают в несколько предложений, и без
+   потолка строка растягивается на весь экран — читать её глазами тяжело,
+   взгляд теряет начало следующей строки. */
+.cron-notes {
+    margin-top: 4px;
+    max-width: 68ch;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #718096;
+    white-space: pre-wrap;
+}
+
+.cron-timing {
+    font-family: monospace;
+    font-size: 12px;
+    color: #4a5568;
+    white-space: nowrap;
+}
+
+/* ⚠ Числовые колонки к правому краю: их сравнивают глазами по столбцу,
+   а разноширокие числа слева друг с другом не сопоставляются.
+
+   ⚠⚠ Заголовок назван вместе с `th`, иначе он остаётся слева: у правила
+   `.cron-table th` вес выше, чем у одиночного класса, и выравнивание
+   молча не применялось — шапка влево, значения вправо. */
+.cron-num,
+.cron-table th.cron-num {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.cron-ok {
+    color: #22543d;
+}
+
+/* «Сколько назад» — второй строкой и бледнее: точное время сравнивают по
+   столбцу, а возраст читают по одной строке. В одну строку они не влезают
+   на узком экране и рвали бы колонку. */
+.cron-ago {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    color: #718096;
+}
+
+.cron-none {
+    color: #a0aec0;
+}
+
+/* Переключатель: ширина фиксированная, чтобы колонка не дёргалась при
+   смене подписи «вкл»/«выкл». */
+.cron-switch {
+    width: 64px;
+    padding: 3px 0;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+}
+
+.cron-switch.on {
+    background: #c6f6d5;
+    color: #22543d;
+    border-color: #9ae6b4;
+}
+
+.cron-switch.off {
+    background: #edf2f7;
+    color: #718096;
+    border-color: #e2e8f0;
+}
+
+.cron-switch:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.cron-empty {
+    padding: 30px;
+    text-align: center;
+    color: #a0aec0;
+    font-size: 13px;
+}

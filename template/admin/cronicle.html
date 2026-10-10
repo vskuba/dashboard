@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{# Страница «Cronicle» — ОБЩАЯ: лежит в submodule `dashboard`.
+   Расписание установки: что запланировано, что отработало сегодня, включатель события.
+
+   ⚠ `base.html` берётся ПРОЕКТА: у каждого своё меню и свои разделы.
+   ⚠⚠ Стили и скрипт — АБСОЛЮТНЫМ путём: относительный требовал бы файла
+   на диске проекта, то есть общего submodule при нём не бывает. #}
+
+{% block title %}Cronicle{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/cronicle.css">
+{% endblock %}
+
+{% block content %}
+<div class="cron-page">
+
+    <div class="cron-tools">
+        <button type="button" class="cron-btn" id="cronReload" title="Спросить заново">⟳</button>
+        <span class="cron-count" id="cronCount"></span>
+    </div>
+
+    <div class="cron-body">
+        <div id="cronNote"></div>
+        <div id="cronList">
+            <div class="cron-empty">Загрузка…</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/cronicle.js"></script>
+{% endblock %}

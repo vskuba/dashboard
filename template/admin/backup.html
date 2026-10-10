@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{# Страница «Backup» — ОБЩАЯ: лежит в submodule `dashboard`.
+   Снимок всей базы и восстановление; ручки — panel_backup_api.
+
+   ⚠ `base.html` берётся ПРОЕКТА: у каждого своё меню и свои разделы.
+   ⚠⚠ Стили и скрипт — АБСОЛЮТНЫМ путём: относительный требовал бы файла
+   на диске проекта, то есть общего submodule при нём не бывает. #}
+
+{% block title %}Backup{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/backup.css">
+{% endblock %}
+
+{% block content %}
+<div class="backup-layout">
+
+    <!-- Header -->
+    <div class="backup-header">
+        <h2>Резервные копии</h2>
+        <span class="backup-hint">mysqldump всей базы данных</span>
+        <div class="backup-header-actions">
+            <span id="statusMsg" class="status-msg"></span>
+            <button class="btn btn-primary btn-large" id="btnCreate" onclick="createBackup()">
+                Создать бэкап
+            </button>
+        </div>
+    </div>
+
+    <!-- Body -->
+    <div class="backup-body">
+        <div id="tableWrap"></div>
+    </div>
+
+</div>
+
+<script>
+// ⚠ Слой отвечает **кодом HTTP** и полем `detail`, а прежние ручки отвечали 200
+// с полем `error`. Помощник сводит оба вида к прежней форме `{result}` /
+// `{error}`, чтобы остальной код страницы не менялся.
+async function ask(url, opts) {
+    const r = await fetch(url, opts);
+    const body = await r.json().catch(() => ({}));
+    if (r.ok) return body;
+    const d = body.detail;
+    return {error: (typeof d === 'string' && d) ? d : `Ошибка ${r.status}`};
+}
+
+async function loadList() {
+    await loadTz();
+    const resp = await ask('/api/backup/file');
+    renderList(resp.result || []);
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(2)} MB`;
+}
+
+function renderList(items) {
+    const wrap = document.getElementById('tableWrap');
+    if (!items.length) {
+        wrap.innerHTML = `
+            <div class="backup-empty">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                          d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 13a2 2 0 002 2h8a2 2 0 002-2l1-13M10 12v6m4-6v6"/>
+                </svg>
+                <p>Бэкапы не найдены</p>
+                <p>Нажмите «Создать бэкап» чтобы сохранить первую резервную копию</p>
+            </div>`;
+        return;
+    }
+
+    const canDelete = items.length > 1;
+    let rows = items.map(f => `
+        <tr>
+            <td class="col-name">${f.name}</td>
+            <td class="col-size">${formatSize(f.size)}</td>
+            <td class="col-date">${fmtTz(f.modified)}</td>
+            <td class="col-actions">
+                <button class="btn btn-outline" onclick="downloadBackup('${f.name}')">Скачать</button>
+                <button class="btn btn-restore" onclick="restoreBackup('${f.name}')">Восстановить</button>
+                ${canDelete ? `<button class="btn btn-danger" onclick="deleteBackup('${f.name}')">Удалить</button>` : ''}
+            </td>
+        </tr>`).join('');
+
+    wrap.innerHTML = `
+        <table class="backup-table">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Размер</th>
+                    <th>Дата</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+}
+
+async function createBackup() {
+    const btn = document.getElementById('btnCreate');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Создание...';
+    hideStatus();
+
+    try {
+        const resp = await ask('/api/backup/create', {method: 'POST'});
+        if (resp.error) {
+            showStatus('Ошибка: ' + resp.error, false);
+        } else {
+            showStatus(`Создан: ${resp.result.name} (${formatSize(resp.result.size)})`, true);
+            await loadList();
+        }
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, false);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Создать бэкап';
+    }
+}
+
+function downloadBackup(name) {
+    window.location.href = `/api/backup/download/${name}`;
+}
+
+async function restoreBackup(name) {
+    if (!confirm(`Восстановить базу данных из бэкапа:\n${name}\n\nВнимание: существующие данные могут быть перезаписаны!`)) return;
+
+    hideStatus();
+    try {
+        const resp = await ask(`/api/backup/restore/${name}`, {method: 'POST'});
+        if (resp.error) showStatus('Ошибка: ' + resp.error, false);
+        else showStatus(resp.result, true);
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, false);
+    }
+}
+
+async function deleteBackup(name) {
+    if (!confirm(`Удалить бэкап:\n${name}`)) return;
+    try {
+        const resp = await ask(`/api/backup/${name}`, {method: 'DELETE'});
+        if (resp.error) showStatus('Ошибка: ' + resp.error, false);
+        else await loadList();
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, false);
+    }
+}
+
+function showStatus(msg, ok) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = 'status-msg ' + (ok ? 'ok' : 'err');
+}
+
+function hideStatus() {
+    document.getElementById('statusMsg').className = 'status-msg';
+}
+
+loadList();
+</script>
+{% endblock %}

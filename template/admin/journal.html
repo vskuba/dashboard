@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{# Страница «Журнал» — ОБЩАЯ: лежит в submodule `dashboard`. Две подвкладки:
+   «Ошибки» (всё, что падает в любом процессе) и «MySQL» (запросы к базе).
+
+   ⚠ `base.html` берётся ПРОЕКТА: у каждого своё меню и свои разделы.
+   ⚠⚠ Стили и скрипт — АБСОЛЮТНЫМ путём: относительный требовал бы файла на
+   диске проекта, то есть общего submodule при нём не бывает. #}
+
+{% block title %}Журнал{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/journal.css">
+{% endblock %}
+
+{% block content %}
+<div class="journal-page">
+
+    <div class="page-tabs" id="journalTabs">
+        <button type="button" class="page-tab active" data-tab="error">⚠️ Ошибки</button>
+        <button type="button" class="page-tab" data-tab="mysql">🗄️ MySQL</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-error">
+        <div class="journal-tools">
+            <select id="journalSource" class="journal-field" title="Чей процесс">
+                <option value="">Любой процесс</option>
+            </select>
+            <select id="journalLevel" class="journal-field" title="Уровень">
+                <option value="">Любой уровень</option>
+                <option value="ERROR">ERROR</option>
+                <option value="CRITICAL">CRITICAL</option>
+            </select>
+            <input type="search" id="journalFind" class="journal-field"
+                   placeholder="поиск по тексту, логгеру и трассировке">
+            <button type="button" class="journal-btn" id="journalReload" title="Спросить заново">⟳</button>
+            <button type="button" class="journal-btn journal-btn-danger" id="journalClear"
+                    title="Убрать все записи по текущему отбору процесса">Очистить</button>
+            <span class="journal-count" id="journalCount"></span>
+        </div>
+
+        <div class="journal-list" id="journalList">
+            <div class="journal-empty">Загрузка...</div>
+        </div>
+
+        <div class="journal-pager">
+            <button type="button" id="journalPagePrev">‹</button>
+            <span id="journalPageInfo">—</span>
+            <button type="button" id="journalPageNext">›</button>
+        </div>
+    </div>
+
+    {# Подвкладка «MySQL»: строка не на прогон запроса, а на его ВИД. Числа
+       складываются по отпечатку (`journal_mysql`), потому что при шести тысячах
+       запросов в минуту строка на каждый — десять миллионов строк в сутки.
+       Устройство — `.claude/docs/journal.md`, раздел про запросы. #}
+    <div class="tab-panel" id="tab-mysql">
+        <div class="journal-tools">
+            <select id="sqlSource" class="journal-field" title="Чей процесс">
+                <option value="">Любой процесс</option>
+            </select>
+            <select id="sqlOrder" class="journal-field" title="Чем сортировать">
+                <option value="total_ms">дороже всего суммарно</option>
+                <option value="max_ms">худший случай</option>
+                <option value="avg_ms">дороже в среднем</option>
+                <option value="hits">чаще всего</option>
+                <option value="rows">больше строк</option>
+                <option value="last_at">свежее</option>
+            </select>
+            <input type="search" id="sqlFind" class="journal-field"
+                   placeholder="поиск по тексту запроса и значениям">
+            <button type="button" class="journal-btn" id="sqlReload" title="Спросить заново">⟳</button>
+            <button type="button" class="journal-btn journal-btn-danger" id="sqlClear"
+                    title="Обнулить счётчики по текущему отбору процесса">Обнулить</button>
+            <span class="journal-count" id="sqlCount"></span>
+        </div>
+
+        <div class="journal-list" id="sqlList">
+            <div class="journal-empty">Загрузка...</div>
+        </div>
+
+        <div class="journal-pager">
+            <button type="button" id="sqlPagePrev">‹</button>
+            <span id="sqlPageInfo">—</span>
+            <button type="button" id="sqlPageNext">›</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/journal.js"></script>
+{% endblock %}

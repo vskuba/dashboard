@@ -1,0 +1,545 @@
+/* Страница «Тесты → E2E»: прогоны, кадры с рамками областей, выключатель.
+   Общая для проектов — лежит в submodule `dashboard`. Чтобы отойти от
+   общего вида, проект кладёт у себя `css/e2e.css` с тем же именем: раздача
+   ищет свой каталог первым. */
+
+/* Раскладка: слева прогоны, справа тесты открытого прогона. Та же пара
+   «список — содержимое», что у трасс (`workflow_trace.html`): соседние
+   страницы админки читаются одними глазами. */
+.e2e-page {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    min-height: 0;
+}
+
+/* ⚠ На вкладке «Тесты» колонка прогонов прячется. Она — выбор прогона, а
+   показывать ей там нечего: щелчок менял бы скрытую панель, то есть не
+   делал бы ничего. Ручка без действия хуже отсутствующей. */
+.e2e-page.cases .e2e-runs {
+    display: none;
+}
+
+/* ===================== Левая колонка: прогоны ===================== */
+.e2e-runs {
+    flex: 0 0 240px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #e2e8f0;
+    background: #fafafa;
+    min-height: 0;
+}
+
+.e2e-runs-head {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #718096;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.e2e-runs-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.e2e-run {
+    padding: 10px 14px;
+    border-bottom: 1px solid #edf2f7;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+}
+
+.e2e-run:hover {
+    background: #f1f5f9;
+}
+
+.e2e-run.active {
+    background: #fff;
+    border-left-color: #3498db;
+}
+
+.e2e-run-time {
+    font-size: 12px;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+.e2e-run-sub {
+    margin-top: 3px;
+    font-size: 11px;
+    color: #718096;
+}
+
+/* ===================== Правая колонка ===================== */
+.e2e-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.e2e-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #fafafa;
+    flex-shrink: 0;
+}
+
+.e2e-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    color: #2d3748;
+}
+
+.e2e-btn:hover {
+    background: #edf2f7;
+}
+
+.e2e-btn-run {
+    border-color: #9ae6b4;
+    background: #f0fff4;
+    color: #22543d;
+    font-weight: 600;
+}
+
+.e2e-btn-run:hover {
+    background: #c6f6d5;
+}
+
+/* Идущий прогон: кнопка заперта и говорит об этом. ⚠ Ширина не фиксируется
+   — подпись меняется с «▶ Прогнать сейчас» на «⏳ Идёт прогон…», и жёсткая
+   ширина обрезала бы одну из них. Соседние кнопки при этом не дёргаются:
+   панель выравнивает их по левому краю. */
+.e2e-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.e2e-count {
+    font-size: 12px;
+    color: #718096;
+    margin-left: auto;
+}
+
+.e2e-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 16px;
+    min-height: 0;
+}
+
+.e2e-empty {
+    padding: 30px;
+    text-align: center;
+    color: #a0aec0;
+    font-size: 13px;
+}
+
+/* ===================== Подвкладки страницы =====================
+   Разметка и имена классов те же, что на /admin/journal и /admin/llm:
+   страницы админки переключаются одинаково. */
+.page-tabs {
+    display: flex;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 0 16px;
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.page-tab {
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #718096;
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+}
+
+.page-tab.active {
+    color: #2c3e50;
+    border-bottom-color: #3498db;
+}
+
+.tab-panel {
+    display: none;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.tab-panel.active {
+    display: flex;
+}
+
+/* ===================== Список случаев ===================== */
+.e2e-case {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    background: #fff;
+}
+
+/* Выключенный случай гаснет весь: взгляд не должен спотыкаться о него,
+   когда ищешь, что сегодня красное. */
+.e2e-case.off {
+    background: #fafafa;
+    color: #a0aec0;
+}
+
+.e2e-case.off .e2e-case-name {
+    color: #a0aec0;
+}
+
+.e2e-case-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.e2e-case-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.e2e-case-meta {
+    margin-top: 2px;
+    font-size: 11px;
+    font-family: monospace;
+    color: #a0aec0;
+}
+
+.e2e-case-desc {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #718096;
+    max-width: 90ch;
+}
+
+.e2e-switch {
+    flex-shrink: 0;
+    width: 86px;
+    padding: 4px 0;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+}
+
+.e2e-switch.on {
+    background: #c6f6d5;
+    color: #22543d;
+    border-color: #9ae6b4;
+}
+
+.e2e-switch.off {
+    background: #edf2f7;
+    color: #718096;
+    border-color: #e2e8f0;
+}
+
+.e2e-switch:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+/* ===================== Карточка теста =====================
+   Карточка — ТЕСТ, а не строка таблицы: у одного случая строк столько,
+   сколько ширин, и показывать их врозь значило бы три карточки с одним
+   именем. Внутри карточки — кадр на ширину. */
+.e2e-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    margin-bottom: 14px;
+    background: #fff;
+    border-left: 3px solid #48bb78;
+}
+
+.e2e-card.fail {
+    border-left-color: #e53e3e;
+}
+
+.e2e-card.error {
+    border-left-color: #dd6b20;
+}
+
+.e2e-card-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 14px 0;
+    flex-wrap: wrap;
+}
+
+.e2e-card-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.e2e-card-page {
+    font-size: 12px;
+    color: #4299e1;
+    font-family: monospace;
+}
+
+/* Описание случая из YAML. Оно отвечает на вопрос «что этот тест
+   стережёт», и читают его, когда тест покраснел, — поэтому не прячется
+   под раскрытие. */
+.e2e-card-desc {
+    padding: 4px 14px 0;
+    font-size: 12px;
+    color: #718096;
+    line-height: 1.45;
+}
+
+.e2e-shots {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px 14px;
+    flex-wrap: wrap;
+}
+
+.e2e-shot {
+    width: 260px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #f7fafc;
+}
+
+.e2e-shot:hover {
+    border-color: #3498db;
+}
+
+.e2e-shot-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    font-size: 11px;
+    background: #f7fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.e2e-shot-width {
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.e2e-shot-areas {
+    margin-left: auto;
+    color: #718096;
+}
+
+/* ⚠ `display: block` обязателен: inline-картинка оставляет под собой
+   полосу базовой линии, и у плитки появляется лишний светлый поясок.
+
+   ⚠⚠ Высота подрезана, и это не вкусовщина. Кадры трёх ширин имеют разные
+   пропорции: 360×800 на плитке в 260 px даёт 578 px высоты, а 1440×900 —
+   162 px. Без подрезки ряд «ступенькой», а карточка одного теста вырастает
+   на полтора экрана. `object-position: top` — потому что смотрят верх
+   страницы: шапка, панель, первые строки. Целый кадр открывается щелчком. */
+.e2e-shot img {
+    display: block;
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+    object-position: top;
+    background: #fff;
+}
+
+.e2e-shot-none {
+    padding: 24px 8px;
+    text-align: center;
+    font-size: 11px;
+    color: #a0aec0;
+}
+
+/* ===================== Значки вердикта ===================== */
+.e2e-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.e2e-badge.ok {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.e2e-badge.fail {
+    background: #fed7d7;
+    color: #742a2a;
+}
+
+.e2e-badge.error {
+    background: #feebc8;
+    color: #7b341e;
+}
+
+/* ===================== Окно кадра крупно ===================== */
+.e2e-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    padding: 24px;
+}
+
+.e2e-modal.open {
+    display: flex;
+    gap: 0;
+}
+
+/* ⚠ `fit-content`, а не `100%`: кадр мобильной ширины — 360 настоящих
+   пикселей, и в окне на всю ширину рядом с ним оставалось 700 пустых —
+   то самое «пустое рядом со сжатым» (§ 2.4 frontend_check_rules). Окно
+   сжимается до кадра, а широкий кадр упирается в `max-width` и ужимается
+   сам. */
+.e2e-modal-box {
+    display: flex;
+    width: fit-content;
+    max-width: 1500px;
+    margin: auto;
+    max-height: 100%;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.e2e-modal-shot {
+    flex: 0 1 auto;
+    overflow: auto;
+    background: #edf2f7;
+    min-width: 0;
+}
+
+/* ⚠ `width: auto`, а не `100%`: кадр мобильной ширины — это 360 настоящих
+   пикселей, и растянутый на 1085 он врёт втрое. Здесь смотрят «что было на
+   экране», то есть кадр в натуральную величину; шире окна — ужимается. */
+.e2e-modal-shot img {
+    display: block;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    margin: 0 auto;
+}
+
+/* Правая панель окна: что именно проверено на этом кадре. Вердикт —
+   число, а не мнение: «x+w = 1452 при вьюпорте 1440». */
+.e2e-modal-side {
+    flex: 0 0 330px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #e2e8f0;
+    min-height: 0;
+}
+
+.e2e-modal-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.e2e-modal-close {
+    margin-left: auto;
+    border: none;
+    background: none;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    color: #a0aec0;
+}
+
+.e2e-modal-close:hover {
+    color: #2d3748;
+}
+
+.e2e-areas {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+    min-height: 0;
+}
+
+.e2e-area {
+    padding: 8px 14px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.e2e-area-name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.e2e-area-sel {
+    font-family: monospace;
+    font-size: 11px;
+    color: #a0aec0;
+    margin-top: 2px;
+    word-break: break-all;
+}
+
+.e2e-rule {
+    display: flex;
+    gap: 6px;
+    font-size: 11px;
+    margin-top: 4px;
+    color: #4a5568;
+}
+
+.e2e-rule.bad {
+    color: #c53030;
+}
+
+.e2e-rule-mark {
+    flex-shrink: 0;
+}
+
+.e2e-console {
+    border-top: 1px solid #e2e8f0;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-family: monospace;
+    color: #c53030;
+    max-height: 120px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}

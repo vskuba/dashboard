@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{# Страница «Пользователи» — ОБЩАЯ: лежит в submodule `dashboard`.
+   Учётки, роли и токены доступа. Ручки — panel_user_api.
+
+   ⚠ `base.html` берётся ПРОЕКТА: у каждого своё меню и свои разделы.
+   ⚠⚠ Стили и скрипт — АБСОЛЮТНЫМ путём: относительный требовал бы файла
+   на диске проекта, то есть общего submodule при нём не бывает. #}
+
+{% block title %}Пользователи{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/user.css">
+{% endblock %}
+
+{% block content %}
+<div class="editor-container">
+
+    <!-- Список Нод (Левая колонка) -->
+    <div class="users-sidebar">
+        <div class="sidebar-header">
+            <button class="btn-create" id="createNewUser">+ Создать пользователя</button>
+        </div>
+        <div class="agent-list" id="userList">
+            <!-- Сюда JS будет рендерить список нод -->
+        </div>
+    </div>
+
+    <!-- Форма Ноды (Правая колонка) -->
+    <div class="editor-section">
+        <div class="form-header">
+            <h2 id="formTitle">Выберите пользователя</h2>
+        </div>
+
+        <form id="userForm">
+            <input type="hidden" id="userId">
+
+            <div class="form-layout-grid">
+                <!-- Колонка 1: Основные настройки -->
+                <div class="settings-column">
+                    <div style="display: flex; gap: 15px; width: 100%;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Username</label>
+                            <input type="text" id="username" class="form-control" required>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Email</label>
+                            <input type="text" id="email" class="form-control" value="0">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Новый пароль</label>
+                            <div class="password-wrap">
+                                <input type="password" id="password" class="form-control"
+                                       autocomplete="new-password"
+                                       title="Пусто — без изменений (8 символов минимум)">
+                                <button type="button" class="password-eye" id="passwordEye"
+                                        title="Показать/скрыть пароль" tabindex="-1">👁</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 15px; width: 100%;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label>Доступные ноды</label>
+                            <select id="user_nodes_select" class="form-control" multiple size="10"
+                                    style="height: 180px;">
+                                <!-- Options will be rendered here by JS -->
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label>Роль</label>
+                            <select id="role" class="form-control">
+                                <!-- Options will be rendered here by JS from /role/list; value — имя роли -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="editor-footer">
+                <!-- Кнопка удаления -->
+                <button type="button" class="btn-delete" id="deleteBtn" style="display: none;">
+                    Удалить пользователя
+                </button>
+                <button type="submit" class="btn-save" id="saveBtn">Сохранить пользователя</button>
+            </div>
+
+            <!-- Секция токенов доступа (доступна только при редактировании существующего пользователя) -->
+            <div id="tokensSection" style="grid-column: span 2; margin-top: 30px; display: none;">
+                <div style="display: flex; align-items: center; border-bottom: 2px solid #f4f4f9; padding-bottom: 10px; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #2c3e50; font-size: 14px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+                        🔑 Токены доступа</h3>
+                    <button type="button" class="btn-save" id="generateTokenBtn"
+                            style="padding: 6px 15px; font-size: 12px; height: auto;margin-left: 20px">Сгенерировать новый ключ
+                    </button>
+                </div>
+                <table class="tokens-table" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                    <thead>
+                    <tr style="background-color: #fcfcfc; border-bottom: 1px solid #eee;">
+                        <th style="text-align: left; padding: 10px; font-size: 11px; color: #7f8c8d; text-transform: uppercase; font-weight: bold;">
+                            Токен
+                        </th>
+                        <th style="text-align: right; padding: 10px; font-size: 11px; color: #7f8c8d; text-transform: uppercase; font-weight: bold; width: 100px;">
+                            Действие
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody id="tokensList">
+                    <!-- JS will render tokens here -->
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/user.js"></script>
+{% endblock %}

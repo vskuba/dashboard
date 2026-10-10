@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{# Страница «Тесты → E2E» — ОБЩАЯ: лежит в submodule `dashboard`, подключается
+   проектам как есть. Чтобы отойти от общего вида, проект кладёт у себя
+   `admin/e2e.html` с тем же именем — поиск шаблонов идёт сперва по его каталогу
+   (`panel_template_env`).
+
+   ⚠ `base.html` берётся ПРОЕКТА: у каждого своё меню и свои разделы, и общей
+   странице знать о них незачем.
+
+   ⚠⚠ Стили и скрипт подключаются АБСОЛЮТНЫМ путём. Относительный требовал бы
+   файла на диске проекта — то есть общего submodule при нём не бывает. #}
+
+{% block title %}E2E{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/e2e.css">
+{% endblock %}
+
+{% block content %}
+<div class="e2e-page">
+
+    <div class="e2e-runs">
+        <div class="e2e-runs-head">Прогоны</div>
+        <div class="e2e-runs-list" id="e2eRuns">
+            <div class="e2e-empty">Загрузка…</div>
+        </div>
+    </div>
+
+    <div class="e2e-main">
+        {# Две подвкладки: «Прогоны» — что уже проверено, «Тесты» — что вообще
+           стережётся и чем это включают. Случай, который ещё ни разу не
+           гоняли, виден только во второй: иначе его нечем было бы включить. #}
+        <div class="page-tabs" id="e2eTabs">
+            <button type="button" class="page-tab active" data-tab="runs">📋 Прогоны</button>
+            <button type="button" class="page-tab" data-tab="cases">🧪 Тесты</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-runs">
+        <div class="e2e-tools">
+            <button type="button" class="e2e-btn" id="e2eReload"
+                    title="Перечитать список прогонов">⟳ Обновить</button>
+            {# Прогон, а не обновление списка: кнопки стоят рядом и раньше их
+               путали — у «⟳» значок читался как «прогнать заново». Поэтому у
+               обеих подпись словами. #}
+            <button type="button" class="e2e-btn e2e-btn-run" id="e2eRun"
+                    title="Прогнать случаи сейчас, не дожидаясь ночи">▶ Прогнать сейчас</button>
+            <span class="e2e-badge" id="e2eRunStatus" style="display:none"></span>
+            <span class="e2e-count" id="e2eCount"></span>
+        </div>
+
+        <div class="e2e-list" id="e2eList">
+            <div class="e2e-empty">Загрузка…</div>
+        </div>
+        </div>
+
+        <div class="tab-panel" id="tab-cases">
+            <div class="e2e-tools">
+                <button type="button" class="e2e-btn" id="e2eCaseReload"
+                        title="Перечитать список случаев">⟳ Обновить</button>
+                <span class="e2e-count" id="e2eCaseCount"></span>
+            </div>
+            <div class="e2e-list" id="e2eCaseList">
+                <div class="e2e-empty">Загрузка…</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="e2e-modal" id="e2eModal">
+    <div class="e2e-modal-box">
+        <div class="e2e-modal-shot" id="e2eModalShot"></div>
+        <div class="e2e-modal-side">
+            <div class="e2e-modal-head">
+                <span id="e2eModalTitle">—</span>
+                <button type="button" class="e2e-modal-close" id="e2eModalClose">×</button>
+            </div>
+            <div class="e2e-areas" id="e2eModalAreas"></div>
+            <div class="e2e-console" id="e2eModalConsole" style="display:none"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/e2e.js"></script>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{# Страница «Настройки» — ОБЩАЯ: лежит в submodule `dashboard`.
+   Значения установки: общее и по узлам. Ручки — panel_setting_api.
+
+   ⚠ `base.html` берётся ПРОЕКТА: у каждого своё меню и свои разделы.
+   ⚠⚠ Стили и скрипт — АБСОЛЮТНЫМ путём: относительный требовал бы файла
+   на диске проекта, то есть общего submodule при нём не бывает.
+
+   ⚠⚠ Скрипт зовётся `setting_page.js`, а НЕ `setting.js`: последнее имя уже
+   занято общим модулем пользовательских настроек (`SettingGet`/`SettingSet`).
+   Раздача ищет файл сперва у проекта — и страница молча получала его вместо
+   своего: 901 байт вместо 238 строк, пустая таблица без единой ошибки. #}
+
+{% block title %}Настройки{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/setting.css">
+{% endblock %}
+
+{% block content %}
+<div class="main-wrapper setting-layout">
+
+    <div class="setting-header">
+        <h2>🛠️ Настройки</h2>
+        <input type="text" class="setting-search" id="settingSearch" placeholder="Поиск по названию...">
+        <span class="setting-hint">пустая ячейка ноды наследует общее значение; очистка ячейки удаляет её</span>
+        <button type="button" class="btn-create" id="createSettingBtn">+ Настройка</button>
+    </div>
+
+    <div class="setting-body">
+        <table class="setting-table">
+            <thead id="settingTableHead">
+            <tr><th>Название</th></tr>
+            </thead>
+            <tbody id="settingTableBody">
+            <tr><td class="empty-note">Загрузка...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/setting_page.js"></script>
+{% endblock %}

@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{# Страница «Seed SQL» — ОБЩАЯ: лежит в submodule `dashboard`.
+   Посев выбранных таблиц поверх живой базы; ручки — panel_seed_api.
+
+   ⚠ `base.html` берётся ПРОЕКТА: у каждого своё меню и свои разделы.
+   ⚠⚠ Стили и скрипт — АБСОЛЮТНЫМ путём: относительный требовал бы файла
+   на диске проекта, то есть общего submodule при нём не бывает. #}
+
+{% block title %}Seed SQL{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/seed.css">
+{% endblock %}
+
+{% block content %}
+<div class="seed-layout">
+
+    <div class="seed-header">
+        <h2>Seed SQL</h2>
+        <div class="seed-header-actions">
+            <span id="statusMsg" class="status-msg"></span>
+            <button class="btn btn-primary btn-large" id="btnGenerate" onclick="generateSeed()">
+                Сгенерировать Seed SQL
+            </button>
+        </div>
+    </div>
+
+    <div class="seed-body">
+
+        <!-- Left: table selection -->
+        <div class="seed-sidebar">
+            <div class="sidebar-top">
+                <span>Таблицы</span>
+            </div>
+            <div class="table-groups" id="tableGroups"></div>
+        </div>
+
+        <!-- Resizer -->
+        <div class="seed-resizer" id="seedResizer"></div>
+
+        <!-- Right: file list -->
+        <div class="seed-files" id="seedFiles">
+            <div class="seed-empty">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <div>Загрузка...</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script src="/static/js/sidebar_resizer.js"></script>
+<script>
+// ⚠ Слой отвечает **кодом HTTP** и полем `detail`, а прежние ручки отвечали 200
+// с полем `error`. Помощник сводит оба вида к прежней форме `{result}` /
+// `{error}`, чтобы остальной код страницы не менялся.
+async function ask(url, opts) {
+    const r = await fetch(url, opts);
+    const body = await r.json().catch(() => ({}));
+    if (r.ok) return body;
+    const d = body.detail;
+    return {error: (typeof d === 'string' && d) ? d : `Ошибка ${r.status}`};
+}
+
+async function init() {
+    await loadTz();
+    const [tablesResp, filesResp] = await Promise.all([
+        ask('/api/seed/table'),
+        ask('/api/seed/file'),
+    ]);
+
+    renderGroups(tablesResp.result || []);
+    renderFiles(filesResp.result || []);
+}
+
+// ⚠⚠ Выбор таблиц помнит **браузер**, а не сервер. Прежде он лежал в настройке
+// `seed_table_config`: строка в базе ради набора галочек. Первый заход берёт
+// отметки от сервера (`default`) — что заводят руками, отмечено, что копит сама
+// работа установки, нет; дальше решает человек, и его выбор держит `localStorage`.
+const SEED_PICK_KEY = 'seed:tables';
+
+function renderGroups(groups) {
+    const container = document.getElementById('tableGroups');
+    container.innerHTML = '';
+
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(SEED_PICK_KEY)); } catch (e) {}
+    const on = Array.isArray(saved) ? new Set(saved) : null;
+
+    for (const group of groups) {
+        const header = document.createElement('div');
+        header.className = 'table-group-header';
+        header.textContent = group.label;
+        container.appendChild(header);
+        for (const tbl of group.tables) {
+            const id = `tbl_${tbl.name}`;
+            const item = document.createElement('div');
+            item.className = 'table-item';
+            item.innerHTML = `<input type="checkbox" id="${id}" value="${tbl.name}" ${(on ? on.has(tbl.name) : tbl.default) ? 'checked' : ''}>
+                              <label for="${id}">${tbl.name}</label>`;
+            container.appendChild(item);
+        }
+    }
+    container.addEventListener('change', saveConfig);
+}
+
+function saveConfig() {
+    localStorage.setItem(SEED_PICK_KEY, JSON.stringify(getSelected()));
+}
+
+function renderFiles(files) {
+    const wrap = document.getElementById('seedFiles');
+    if (!files.length) {
+        wrap.innerHTML = `<div class="seed-empty">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <div>Нет файлов. Нажмите «Сгенерировать Seed SQL»</div>
+        </div>`;
+        return;
+    }
+
+    const canDelete = files.length > 1;
+    const rows = files.map(f => `
+        <tr>
+            <td class="col-name">${f.name}</td>
+            <td class="col-size">${formatSize(f.size)}</td>
+            <td class="col-date">${fmtTz(f.modified)}</td>
+            <td class="col-actions">
+                <button class="btn btn-outline" onclick="downloadSeed('${f.name}')">Скачать</button>
+                <button class="btn btn-success" onclick="applySeed('${f.name}')">Применить</button>
+                ${canDelete ? `<button class="btn btn-danger" onclick="deleteSeed('${f.name}')">Удалить</button>` : ''}
+            </td>
+        </tr>`).join('');
+
+    wrap.innerHTML = `<table class="seed-table">
+        <thead><tr>
+            <th>Название</th><th>Размер</th><th>Дата</th><th>Действия</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(2)} MB`;
+}
+
+function selectAll(checked) {
+    document.querySelectorAll('#tableGroups input[type=checkbox]').forEach(cb => cb.checked = checked);
+    saveConfig();
+}
+
+function getSelected() {
+    return Array.from(document.querySelectorAll('#tableGroups input[type=checkbox]:checked')).map(cb => cb.value);
+}
+
+async function generateSeed() {
+    const tables = getSelected();
+    if (!tables.length) { showStatus('Выберите хотя бы одну таблицу', false); return; }
+
+    const btn = document.getElementById('btnGenerate');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Генерация...';
+    hideStatus();
+
+    try {
+        const resp = await ask('/api/seed/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({tables}),
+        });
+
+        if (resp.error) {
+            showStatus('Ошибка: ' + resp.error, false);
+        } else {
+            showStatus(`Создан: ${resp.result.name} (${formatSize(resp.result.size)})`, true);
+            const filesResp = await ask('/api/seed/file');
+            renderFiles(filesResp.result || []);
+        }
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, false);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Сгенерировать Seed SQL';
+    }
+}
+
+async function applySeed(name) {
+    if (!confirm(`Применить seed к текущей базе данных?\n\n${name}\n\nINSERT IGNORE — существующие записи не перезапишутся.`)) return;
+    try {
+        const resp = await ask(`/api/seed/apply/${name}`, {method: 'POST'});
+        if (resp.error) showStatus('Ошибка: ' + resp.error, false);
+        else showStatus(resp.result, true);
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, false);
+    }
+}
+
+function downloadSeed(name) {
+    window.location.href = `/api/seed/download/${name}`;
+}
+
+async function deleteSeed(name) {
+    if (!confirm(`Удалить файл:\n${name}`)) return;
+    try {
+        const resp = await ask(`/api/seed/${name}`, {method: 'DELETE'});
+        if (resp.error) showStatus('Ошибка: ' + resp.error, false);
+        else {
+            const filesResp = await ask('/api/seed/file');
+            renderFiles(filesResp.result || []);
+        }
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, false);
+    }
+}
+
+function showStatus(msg, ok) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = 'status-msg ' + (ok ? 'ok' : 'err');
+}
+
+function hideStatus() {
+    document.getElementById('statusMsg').className = 'status-msg';
+}
+
+initSidebarResizer('seedResizer', 'seed_sidebar_width', document.querySelector('.seed-sidebar'));
+init();
+</script>
+{% endblock %}
