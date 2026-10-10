@@ -84,16 +84,44 @@ async def e2e_run_all(folder: str = '', base: str = '') -> dict:
     logger_info(f'🧪 E2E прогон {run_uuid}: случаев {len(cases)}'
                 + (f', выключено {len(skipped)}' if skipped else ''))
 
+    # Сторона соседа: адрес и учётка приходят окружением, потому что сосед у
+    # каждой установки свой, а случай один на все (`tests_e2e_case_peer`).
+    peer_base = config_get('E2E_PEER_URL', '')
+    peer_user = config_get('E2E_PEER_USER', '')
+    peer_password = config_get('E2E_PEER_PASSWORD', '')
+
     tests = failed = errored = 0
     for case in cases:
         for width in case['widths']:
-            result = await e2e_run_one(case, width, shots, base,
-                                          user=user, password=password)
-            await e2e_run_write(run_uuid, result)
+            # Пара: наша сторона, затем сторона соседа — если случай её описал.
+            # Строка пишется на каждую, и различает их `page`: отдельного поля
+            # в схеме под это заводить не пришлось.
+            sides = [(case, base, user, password, '')]
+            if case.get('peer'):
+                sides.append((case['peer'], peer_base, peer_user,
+                              peer_password, 'peer'))
 
-            tests += 1
-            failed += result['status'] == 'fail'
-            errored += result['status'] == 'error'
+            for side, side_base, side_user, side_password, tag in sides:
+                if tag and not side_base:
+                    # ⚠ Адрес соседа не задан — это `error` со словами, а не
+                    # пропуск: случай обещает пару кадров, и молча снять один
+                    # значило бы выдать половину доказательства за целое.
+                    result = {
+                        'name': side['name'], 'description': side['description'],
+                        'page': side['page'], 'width': width, 'status': 'error',
+                        'areas': [], 'console': [], 'duration_ms': 0,
+                        'error': 'адрес соседа не задан: E2E_PEER_URL пуста, '
+                                 'снять его сторону нечем',
+                    }
+                else:
+                    result = await e2e_run_one(side, width, shots, side_base,
+                                               user=side_user,
+                                               password=side_password, tag=tag)
+                await e2e_run_write(run_uuid, result)
+
+                tests += 1
+                failed += result['status'] == 'fail'
+                errored += result['status'] == 'error'
 
     await e2e_store_trim()
     logger_info(f'🧪 E2E прогон {run_uuid}: тестов {tests}, '
@@ -103,10 +131,17 @@ async def e2e_run_all(folder: str = '', base: str = '') -> dict:
 
 
 async def e2e_run_one(case: dict, width: int, shots: str, base: str,
-                         user: str = '', password: str = '') -> dict:
-    """Один случай в одной ширине — в отдельном потоке; см. шапку модуля."""
-    names = (e2e_shot_name(case['name'], width, marked=False),
-             e2e_shot_name(case['name'], width, marked=True))
+                         user: str = '', password: str = '',
+                         tag: str = '') -> dict:
+    """Один случай в одной ширине — в отдельном потоке; см. шапку модуля.
+
+    ⚠⚠ `tag` попадает в имя файла кадра, и без него пара сторон затирала бы
+    себя: имя считается от имени случая, а у стороны соседа оно своё лишь в
+    отчёте — файл же получался бы тот же при совпадении имён.
+    """
+    mark = f"{case['name']}::{tag}" if tag else case['name']
+    names = (e2e_shot_name(mark, width, marked=False),
+             e2e_shot_name(mark, width, marked=True))
     try:
         return await asyncio.to_thread(tests_e2e_run_case, case, width,
                                        shots, base, names, '', user, password)
