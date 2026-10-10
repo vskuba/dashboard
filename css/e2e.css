@@ -22,13 +22,35 @@
 }
 
 /* ===================== Левая колонка: прогоны ===================== */
+/* ⚠ `flex: 0 0 auto` + `width`, а не `flex: 0 0 240px`: разделитель двигает
+   именно `style.width`, и при заданном flex-basis тот перебил бы его молча —
+   колонка просто не тянулась бы, без единой ошибки в консоли. */
 .e2e-runs {
-    flex: 0 0 240px;
+    flex: 0 0 auto;
+    width: 240px;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid #e2e8f0;
     background: #fafafa;
     min-height: 0;
+}
+
+/* Разделитель: он же граница колонки — отдельный бордюр рядом с ним дал бы
+   двойную линию. Прячется вместе с колонкой на вкладке «Тесты». */
+.e2e-resizer {
+    flex: 0 0 auto;
+    width: 2px;
+    background: #e2e8f0;
+    cursor: col-resize;
+    transition: background 0.15s;
+}
+
+.e2e-resizer:hover,
+.e2e-resizer.dragging {
+    background: #3498db;
+}
+
+.e2e-page.cases .e2e-resizer {
+    display: none;
 }
 
 .e2e-runs-head {
@@ -49,10 +71,47 @@
 }
 
 .e2e-run {
+    position: relative;
     padding: 10px 14px;
     border-bottom: 1px solid #edf2f7;
     cursor: pointer;
     border-left: 3px solid transparent;
+}
+
+/* Снести прогон. Кружок с крестиком виден только под курсором своей карточки:
+   кнопка необратимого действия, стоящая на виду у тридцати строк разом, рано
+   или поздно ловит промах соседнего щелчка. */
+.e2e-run-drop {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 50%;
+    background: #fff;
+    color: #a0aec0;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.e2e-run:hover .e2e-run-drop {
+    opacity: 1;
+}
+
+.e2e-run-drop:hover {
+    color: #e03131;
+    border-color: #e03131;
+}
+
+/* ⚠ Клавиатурный переход обязан показывать кнопку: `opacity: 0` оставляет её
+   в порядке обхода, и без этого правила фокус уезжал бы на невидимое. */
+.e2e-run-drop:focus-visible {
+    opacity: 1;
 }
 
 .e2e-run:hover {

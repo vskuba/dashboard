@@ -10,7 +10,8 @@
 
 ```python
 app.include_router(e2e_api_router(view=AuthPermission.E2E_VIEW,
-                                  run=AuthPermission.E2E_RUN))
+                                  run=AuthPermission.E2E_RUN,
+                                  drop=AuthPermission.E2E_DELETE))
 ```
 
 ⚠ Кадр отдаётся по **номеру строки**, а не по пути: путь берётся из базы.
@@ -27,7 +28,8 @@ from dashboard.src.page.e2e.e2e_case import e2e_case_enable, e2e_case_list
 from dashboard.src.page.e2e.e2e_run import E2E_RUN_CASE_DIR
 from dashboard.src.page.e2e.e2e_shot import e2e_shot_path
 from dashboard.src.page.e2e.e2e_store import (E2E_STORE_API_PREFIX, e2e_store_row_get,
-                            e2e_store_run_list, e2e_store_run_rows)
+                            e2e_store_run_drop, e2e_store_run_list,
+                            e2e_store_run_rows)
 from dashboard.src.page.e2e.e2e_worker import e2e_worker_enqueue, e2e_worker_running
 
 
@@ -36,7 +38,8 @@ class E2eApiEnableIn(BaseModel):
     enabled: bool
 
 
-def e2e_api_router(view=None, run=None, prefix: str = E2E_STORE_API_PREFIX) -> APIRouter:
+def e2e_api_router(view=None, run=None, drop=None,
+                   prefix: str = E2E_STORE_API_PREFIX) -> APIRouter:
     """Роутер страницы «Тесты».
 
     Args:
@@ -44,6 +47,7 @@ def e2e_api_router(view=None, run=None, prefix: str = E2E_STORE_API_PREFIX) -> A
             администратор.
         run: право на действие — прогон и переключатель. Пусто — только
             администратор.
+        drop: право снести прогон. Пусто — только администратор.
         prefix: путь ручек; менять незачем, но проект вправе.
 
     Returns:
@@ -52,9 +56,16 @@ def e2e_api_router(view=None, run=None, prefix: str = E2E_STORE_API_PREFIX) -> A
     ⚠ Право на действие отдельное от чтения, и это не формальность: прогон
     поднимает браузер и ходит по страницам панели, а выключенный случай молча
     перестаёт проверяться — узнают об этом по ненайденной поломке.
+
+    ⚠⚠ Удаление — третье право, а не часть `run`. Прогон создаёт запись, и
+    худшее от лишнего нажатия — потраченные минуты браузера; удаление уносит
+    доказательство: кадры со вчерашней поломкой восстановить нечем, случай
+    придётся воспроизводить заново. Разные по необратимости действия одним
+    правом не раздают.
     """
     guard_view = panel_auth_need(view) if view else panel_auth_admin_required
     guard_run = panel_auth_need(run) if run else panel_auth_admin_required
+    guard_drop = panel_auth_need(drop) if drop else panel_auth_admin_required
 
     router = APIRouter(prefix=prefix, tags=['e2e'])
 
@@ -86,6 +97,17 @@ def e2e_api_router(view=None, run=None, prefix: str = E2E_STORE_API_PREFIX) -> A
     async def e2e_run_get_route(run_uuid: str, user=Depends(guard_view)):
         """Один прогон целиком; `last` — самый свежий."""
         return {'result': await e2e_store_run_rows('' if run_uuid == 'last' else run_uuid)}
+
+    @router.delete('/run/{run_uuid}', include_in_schema=False)
+    async def e2e_run_drop_route(run_uuid: str, user=Depends(guard_drop)):
+        """Снести прогон целиком — строки и кадры.
+
+        ⚠ Прогона с такой меткой нет — это **не** 404: кнопку могли нажать
+        дважды, а второй отказ выглядел бы поломкой там, где всё сделано.
+        Отдаём честный счёт снесённого, и ноль — такой же законный ответ.
+        """
+        return {'result': {'run_uuid': run_uuid,
+                           'rows': await e2e_store_run_drop(run_uuid)}}
 
     @router.get('/row/{row_id}', include_in_schema=False)
     async def e2e_row_get_route(row_id: int, user=Depends(guard_view)):

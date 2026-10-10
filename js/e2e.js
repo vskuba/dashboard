@@ -1,4 +1,4 @@
-import {getData, postData, putData} from '/static/js/api.js';
+import {deleteData, getData, postData, putData} from '/static/js/api.js';
 import {showNotification} from '/static/js/notification.js';
 import {el} from '/static/js/page_dom.js';
 
@@ -41,10 +41,44 @@ async function loadRuns() {
             ` · тестов ${run.tests}` + (run.failed ? `, провалов ${run.failed}` : '')));
         node.append(sub);
 
+        node.append(dropButton(run));
         node.onclick = () => openRunRows(run.run_uuid);
         runsEl.append(node);
     });
     return runs;
+}
+
+/** Кружок с крестиком на карточке прогона: снести строки и кадры. */
+function dropButton(run) {
+    const when = fmtTz(run.started_at, false);
+    const node = el('button', 'e2e-run-drop', '×');
+    node.type = 'button';
+    node.title = `Удалить прогон от ${when}`;
+
+    node.onclick = async (event) => {
+        // ⚠ Щелчок по кнопке не обязан открывать прогон: карточка целиком —
+        // ссылка, и без этого удаление сперва показывало бы то, что удаляет.
+        event.stopPropagation();
+        if (!confirm(`Удалить прогон от ${when} вместе с кадрами?`)) return;
+
+        try {
+            await deleteData(`/api/e2e/run/${run.run_uuid}`);
+        } catch (err) {
+            showNotification('Прогон не удалён: ' + err.message, 'error');
+            return;
+        }
+
+        showNotification(`Прогон от ${when} удалён`, 'success');
+        // ⚠⚠ Открыт был именно он — правую колонку надо увести на свежий
+        // прогон, иначе она осталась бы показывать кадры, которых уже нет:
+        // плитки молча превратились бы в битые картинки.
+        const runs = await loadRuns();
+        if (openRun === run.run_uuid) {
+            openRun = '';
+            await openRunRows(runs.length ? runs[0].run_uuid : '');
+        }
+    };
+    return node;
 }
 
 async function openRunRows(runUuid) {
@@ -394,6 +428,19 @@ document.querySelectorAll('.page-tab').forEach(tab => {
         tabSwitch(tab.dataset.tab);
     };
 });
+
+// Делитель колонок: ширина списка прогонов запоминается в браузере. Двойной
+// клик по нему возвращает умолчание.
+//
+// ⚠ `initSidebarResizer` — глобаль из `tz.js`-соседа `sidebar_resizer.js`,
+// который шаблон страницы подключает сам. Проверка на `typeof`, а не прямой
+// вызов: проект вправе положить у себя свой `e2e.html` без этой строки, и
+// страница обязана тогда работать без делителя, а не падать на первой же
+// отрисовке — иначе отсутствие ручки уносит с собой весь список.
+if (typeof initSidebarResizer === 'function') {
+    initSidebarResizer('e2eResizer', 'e2e_runs_width',
+                       document.querySelector('.e2e-runs'));
+}
 
 // ⚠ `loadTz()` до первой отрисовки: без него `fmtTz` покажет UTC, а
 // настройка `timezone` сдвигает время на всех страницах админки.
