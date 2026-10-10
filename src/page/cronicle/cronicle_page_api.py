@@ -25,8 +25,8 @@ from cronicle_.cronicle_api import (cronicle_api_enable, cronicle_api_history,
                                     cronicle_api_key, cronicle_api_last_ok_today,
                                     cronicle_api_schedule)
 from fastapi import APIRouter, Depends, HTTPException
-from panel_.panel_auth import panel_auth_admin_required, panel_auth_need
-from panel_.panel_setting_api import panel_setting_timezone_hours
+from dashboard.src.panel.panel_auth import panel_auth_admin_required, panel_auth_need
+from dashboard.src.panel.panel_setting_api import panel_setting_timezone_hours
 from pydantic import BaseModel
 
 

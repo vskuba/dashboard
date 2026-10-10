@@ -20,7 +20,7 @@ app.include_router(e2e_api_router(view=AuthPermission.E2E_VIEW,
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
-from panel_.panel_auth import panel_auth_admin_required, panel_auth_need
+from dashboard.src.panel.panel_auth import panel_auth_admin_required, panel_auth_need
 from pydantic import BaseModel
 
 from dashboard.src.page.e2e.e2e_case import e2e_case_enable, e2e_case_list

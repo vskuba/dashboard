@@ -24,7 +24,7 @@ app.include_router(journal_api_router(view=AuthPermission.JOURNAL_VIEW,
 """
 
 from fastapi import APIRouter, Depends
-from panel_.panel_auth import panel_auth_admin_required, panel_auth_need
+from dashboard.src.panel.panel_auth import panel_auth_admin_required, panel_auth_need
 
 from dashboard.src.page.journal.journal_mysql import (JOURNAL_MYSQL_PAGE,
                                       journal_mysql_clear,
