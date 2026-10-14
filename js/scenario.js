@@ -1,0 +1,454 @@
+// Страница «Сценарии»: что браузер делает на чужом сайте, шагами.
+//
+// ⚠⚠ Форма шага строится по справочнику С СЕРВЕРА (`result.actions`), а не по
+// списку действий здесь. Список закрыт схемой слоя, и вторая копия разошлась бы
+// с ней в день, когда в схему добавят действие, — причём молча: страница
+// показывала бы поле, которого схема не ждёт, а сохранение падало бы отказом,
+// непонятным человеку.
+//
+// ⚠ Правка идёт в памяти и уходит на сервер ЦЕЛИКОМ, одним сценарием. Шаг —
+// не самостоятельная запись: порядок шагов и есть сценарий, и сохранять их по
+// одному значило бы допускать состояние «третий шаг сохранён, второй нет».
+//
+// ⚠ Площадка в шапке задаёт всю страницу: её сценарии, её переменные. Смена
+// перерисовывает колонки целиком, а не докладывает к ним чужое.
+
+import {getData, postData} from '/static/js/api.js';
+import {showNotification} from '/static/js/notification.js';
+import {el} from '/static/js/page_dom.js';
+
+const STATUS_LABEL = {draft: 'черновик', active: 'в работе', broken: 'сломан'};
+
+// Каким действием заводится новый шаг. ⚠ Не первое из справочника: тот
+// отсортирован по алфавиту, и новый шаг выходил бы `assert_text` — проверкой,
+// с которой сценарии не начинают. Переход открывает почти каждый.
+const STEP_DEFAULT = 'goto';
+
+// Где лежит выбранная площадка. В localStorage, а не в сессии: выбор — свойство
+// этой машины и этой вкладки человека, серверу он не нужен ни для чего.
+const SITE_KEY = 'panel_scenario_site';
+
+const listBox = document.getElementById('scnList');
+const varsBox = document.getElementById('scnVars');
+const editorBox = document.getElementById('scnEditor');
+const siteSel = document.getElementById('scnSite');
+const siteBox = document.getElementById('scnSiteBox');
+
+// Снимок страницы: справочник действий, состояния, площадки. Заполняется
+// ответом сервера — здесь только то, что уже пришло.
+let actions = [];
+let statuses = [];
+let site = 0;
+
+// Сценарий, открытый в правой колонке. ⚠ Копия, а не ссылка на строку списка:
+// человек правит шаги и может уйти, не сохранив, — список при этом обязан
+// показывать то, что лежит на сервере.
+let draft = null;
+
+document.getElementById('scnNew').onclick = () => openDraft(null);
+document.getElementById('scnVarAdd').onsubmit = saveVariable;
+siteSel.onchange = () => {
+    localStorage.setItem(SITE_KEY, siteSel.value);
+    load(siteSel.value);
+};
+
+load(localStorage.getItem(SITE_KEY) || 0);
+
+
+// Снимок страницы одной площадки.
+//
+// ⚠ Показанную площадку называет сервер (`result.site_id`), а не этот запрос:
+// сохранённой в прошлый раз могло уже не быть, и селект обязан показать ту, что
+// нарисована на деле.
+async function load(wanted) {
+    try {
+        const {result} = await getData(`/api/scenario?site_id=${Number(wanted) || 0}`);
+        site = Number(result.site_id) || 0;
+        actions = result.actions || [];
+        statuses = result.statuses || [];
+        renderSites(result.sites);
+        renderList(result.scenarios);
+        renderVars(result.variables);
+    } catch (e) {
+        listBox.innerHTML = '';
+        listBox.appendChild(el('div', 'scn-empty', 'Ошибка загрузки'));
+        console.error('Сценарии:', e);
+    }
+}
+
+// ── шапка: выбор площадки ──────────────────────────────────────────────────
+
+// ⚠ Нет площадок — селект прячется целиком, а не стоит пустым. У установки без
+// магазинов сценарии общие, и выбор там не из чего делать.
+function renderSites(sites) {
+    siteBox.hidden = !(sites || []).length;
+    siteSel.innerHTML = '';
+    (sites || []).forEach(row => {
+        const opt = document.createElement('option');
+        opt.value = row.id;
+        opt.textContent = row.name;
+        opt.selected = Number(row.id) === site;
+        siteSel.appendChild(opt);
+    });
+}
+
+// ── левая колонка: сценарии и переменные ───────────────────────────────────
+
+function renderList(rows) {
+    listBox.innerHTML = '';
+    if (!(rows || []).length) {
+        listBox.appendChild(el('div', 'scn-empty', 'сценариев пока нет'));
+        return;
+    }
+
+    rows.forEach(row => {
+        const item = el('div', 'scn-item' + (draft && draft.id === row.id ? ' active' : ''));
+        const head = el('div', 'scn-item-head');
+        head.appendChild(el('span', 'scn-item-name', row.name));
+        head.appendChild(el('span', `scn-status scn-status-${row.status}`,
+                            STATUS_LABEL[row.status] || row.status));
+        item.appendChild(head);
+        if (row.goal) item.appendChild(el('div', 'scn-item-goal', row.goal));
+        item.onclick = () => openScenario(row.id);
+        listBox.appendChild(item);
+    });
+}
+
+function renderVars(rows) {
+    varsBox.innerHTML = '';
+    if (!site) {
+        varsBox.appendChild(el('div', 'scn-empty', 'переменные у площадки'));
+        return;
+    }
+    if (!(rows || []).length) {
+        varsBox.appendChild(el('div', 'scn-empty', 'переменных нет'));
+        return;
+    }
+
+    rows.forEach(row => {
+        const line = el('div', 'scn-var');
+        line.appendChild(el('span', 'scn-var-name',
+                            (row.is_secret ? '🔒 ' : '') + row.name));
+        // ⚠ Секрет приходит под маской — всегда. Показывать нечего, и это не
+        // недоделка: сырое значение отдаётся только прогону.
+        line.appendChild(el('span', 'scn-var-value', row.value || '—'));
+        const bin = el('button', 'scn-drop', '🗑');
+        bin.type = 'button';
+        bin.title = 'убрать переменную';
+        bin.onclick = () => dropVariable(row);
+        line.appendChild(bin);
+        varsBox.appendChild(line);
+    });
+}
+
+async function saveVariable(event) {
+    event.preventDefault();
+    const name = document.getElementById('scnVarName');
+    const value = document.getElementById('scnVarValue');
+    const secret = document.getElementById('scnVarSecret');
+    if (!site) {
+        showNotification('Сначала выберите площадку', 'error');
+        return;
+    }
+
+    try {
+        const {result} = await postData('/api/scenario/variable', {
+            site_id: site, name: name.value, value: value.value,
+            is_secret: secret.checked,
+        });
+        name.value = '';
+        value.value = '';
+        secret.checked = false;
+        renderVars(result);
+    } catch (e) {
+        showNotification(String(e.message || e), 'error');
+    }
+}
+
+async function dropVariable(row) {
+    if (!confirm(`Убрать переменную «${row.name}»?`)) return;
+
+    try {
+        await postData('/api/scenario/variable/remove', {id: row.id});
+        await load(site);
+    } catch (e) {
+        showNotification(String(e.message || e), 'error');
+    }
+}
+
+// ── правая колонка: редактор ───────────────────────────────────────────────
+
+async function openScenario(id) {
+    try {
+        const {result} = await getData(`/api/scenario/${id}`);
+        openDraft(result);
+    } catch (e) {
+        showNotification(String(e.message || e), 'error');
+    }
+}
+
+// Новый сценарий или открытый существующий. ⚠ Шаги копируются, а не берутся
+// ссылкой: правка в редакторе не должна менять список слева до сохранения.
+function openDraft(row) {
+    draft = row
+        ? {...row, steps: JSON.parse(JSON.stringify(row.steps || []))}
+        : {id: 0, name: '', goal: '', start_url: '', status: 'draft', steps: [],
+           variables: {}, runs: []};
+    renderEditor();
+}
+
+function renderEditor() {
+    editorBox.innerHTML = '';
+    if (!draft) {
+        editorBox.appendChild(el('div', 'scn-empty',
+                                 'Выберите сценарий слева или заведите новый'));
+        return;
+    }
+
+    editorBox.appendChild(editorHead());
+    editorBox.appendChild(stepsBox());
+    editorBox.appendChild(editorButtons());
+    if (draft.runs && draft.runs.length) editorBox.appendChild(runsBox(draft.runs));
+}
+
+function editorHead() {
+    const box = el('div', 'scn-form');
+    box.appendChild(field('Имя', 'name', 'как звать в карточке заказа'));
+    box.appendChild(field('Зачем', 'goal', 'что этот сценарий делает'));
+    box.appendChild(field('Начальный адрес', 'start_url', 'https://…'));
+
+    const line = el('div', 'scn-field');
+    line.appendChild(el('label', null, 'Состояние'));
+    const select = document.createElement('select');
+    statuses.forEach(code => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = STATUS_LABEL[code] || code;
+        opt.selected = code === draft.status;
+        select.appendChild(opt);
+    });
+    select.onchange = () => { draft.status = select.value; };
+    line.appendChild(select);
+    box.appendChild(line);
+
+    return box;
+}
+
+function field(title, key, placeholder) {
+    const line = el('div', 'scn-field');
+    line.appendChild(el('label', null, title));
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = draft[key] || '';
+    input.placeholder = placeholder || '';
+    input.oninput = () => { draft[key] = input.value; };
+    line.appendChild(input);
+
+    return line;
+}
+
+// ── шаги ───────────────────────────────────────────────────────────────────
+
+function stepsBox() {
+    const box = el('div', 'scn-steps');
+    box.appendChild(el('div', 'scn-col-name', '👣 Шаги'));
+    (draft.steps || []).forEach((step, at) => box.appendChild(stepRow(step, at)));
+
+    const add = el('button', 'scn-btn scn-step-add', '+ шаг');
+    add.type = 'button';
+    add.onclick = () => {
+        draft.steps.push({action: STEP_DEFAULT});
+        renderEditor();
+    };
+    box.appendChild(add);
+
+    return box;
+}
+
+// Один шаг: действие селектом, поля — те, что это действие требует.
+//
+// ⚠⚠ Поля берутся из справочника сервера по имени действия. Сменили действие —
+// поля перерисовываются; чужие значения при этом остаются в объекте шага и
+// уходят на сервер. Это осознанно: человек часто переключает `click` ↔ `hover`
+// на том же селекторе, и терять его на каждом переключении значило бы заставить
+// набирать заново.
+function stepRow(step, at) {
+    const row = el('div', 'scn-step');
+
+    const head = el('div', 'scn-step-head');
+    head.appendChild(el('span', 'scn-step-no', `${at + 1}`));
+
+    const select = document.createElement('select');
+    actions.forEach(one => {
+        const opt = document.createElement('option');
+        opt.value = one.action;
+        opt.textContent = one.action;
+        opt.selected = one.action === step.action;
+        select.appendChild(opt);
+    });
+    select.onchange = () => { step.action = select.value; renderEditor(); };
+    head.appendChild(select);
+
+    head.appendChild(moveButton('↑', at, -1));
+    head.appendChild(moveButton('↓', at, 1));
+
+    const bin = el('button', 'scn-drop', '🗑');
+    bin.type = 'button';
+    bin.title = 'убрать шаг';
+    bin.onclick = () => { draft.steps.splice(at, 1); renderEditor(); };
+    head.appendChild(bin);
+    row.appendChild(head);
+
+    const spec = actions.find(one => one.action === step.action);
+    (spec ? spec.fields : []).forEach(name => {
+        row.appendChild(stepField(step, name));
+    });
+
+    return row;
+}
+
+function stepField(step, name) {
+    const line = el('div', 'scn-step-field');
+    line.appendChild(el('label', null, name));
+
+    // `fields` у `extract_rows` — список записей, и строкой его не набрать:
+    // отдаём как JSON в textarea, где его и правят.
+    const json = name === 'fields';
+    const input = document.createElement(json ? 'textarea' : 'input');
+    if (!json) input.type = 'text';
+    input.value = json
+        ? JSON.stringify(step[name] || [], null, 1)
+        : (step[name] === undefined ? '' : step[name]);
+    input.oninput = () => {
+        if (!json) { step[name] = input.value; return; }
+        // ⚠ Негодный JSON не стирает набранное и не роняет страницу: человек
+        // печатает, и в середине ввода текст закономерно негоден. Значение
+        // примется, когда станет разбираемым.
+        try {
+            step[name] = JSON.parse(input.value);
+            input.classList.remove('scn-bad');
+        } catch (e) {
+            input.classList.add('scn-bad');
+        }
+    };
+    line.appendChild(input);
+
+    return line;
+}
+
+function moveButton(sign, at, shift) {
+    const btn = el('button', 'scn-move', sign);
+    btn.type = 'button';
+    btn.title = 'переставить шаг';
+    btn.disabled = at + shift < 0 || at + shift >= draft.steps.length;
+    btn.onclick = () => {
+        const steps = draft.steps;
+        [steps[at], steps[at + shift]] = [steps[at + shift], steps[at]];
+        renderEditor();
+    };
+
+    return btn;
+}
+
+// ── сохранить и прогнать ───────────────────────────────────────────────────
+
+function editorButtons() {
+    const box = el('div', 'scn-actions');
+
+    const save = el('button', 'scn-btn scn-btn-main', 'Сохранить');
+    save.type = 'button';
+    save.onclick = () => saveDraft(save);
+    box.appendChild(save);
+
+    // ⚠ Прогнать можно только сохранённый: контейнер получает сценарий из базы,
+    // а не из этой формы. Кнопка у нового поэтому выключена — иначе человек
+    // прогонял бы прошлую версию, думая, что проверяет свою правку.
+    const run = el('button', 'scn-btn', '▶ прогнать');
+    run.type = 'button';
+    run.disabled = !draft.id;
+    run.title = draft.id ? 'прогнать сценарий сейчас' : 'сначала сохраните';
+    run.onclick = () => runDraft(run);
+    box.appendChild(run);
+
+    if (draft.id) {
+        const bin = el('button', 'scn-btn scn-btn-bad', 'Убрать');
+        bin.type = 'button';
+        bin.onclick = () => dropDraft();
+        box.appendChild(bin);
+    }
+
+    return box;
+}
+
+async function saveDraft(btn) {
+    btn.disabled = true;
+    try {
+        const {result} = await postData('/api/scenario', {
+            id: draft.id, site_id: site, name: draft.name, goal: draft.goal,
+            start_url: draft.start_url, status: draft.status,
+            steps: draft.steps, variables: draft.variables || {},
+        });
+        showNotification(`Сценарий «${result.name}» сохранён`, 'success');
+        draft = {...result, steps: result.steps || [], runs: draft.runs || []};
+        await load(site);
+        renderEditor();
+    } catch (e) {
+        showNotification(String(e.message || e), 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function runDraft(btn) {
+    btn.disabled = true;
+    btn.textContent = '▶ идёт…';
+    try {
+        const {result} = await postData(`/api/scenario/${draft.id}/run`, {});
+        // ⚠⚠ Упавший сценарий приходит кодом 200 со `status: "error"` внутри:
+        // не отработал чужой сайт, а не наш сервер. Поэтому цвет уведомления
+        // решает поле ответа, а не то, что запрос не бросил исключение.
+        const ok = result.status === 'ok' || result.status === 'success';
+        showNotification(ok ? 'Прогон удался'
+                            : `Прогон не удался: ${result.error || result.status}`,
+                         ok ? 'success' : 'error');
+        await openScenario(draft.id);
+    } catch (e) {
+        showNotification(String(e.message || e), 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '▶ прогнать';
+    }
+}
+
+async function dropDraft() {
+    if (!confirm(`Убрать сценарий «${draft.name}»? Прогоны уйдут следом.`)) return;
+
+    try {
+        await postData('/api/scenario/remove', {id: draft.id});
+        draft = null;
+        await load(site);
+        renderEditor();
+    } catch (e) {
+        showNotification(String(e.message || e), 'error');
+    }
+}
+
+// ── прогоны ────────────────────────────────────────────────────────────────
+
+// ⚠ Последние прогоны стоят под сценарием, а не в отдельной ленте: провал надо
+// видеть там же, где правят шаги, иначе человек правит вслепую.
+function runsBox(runs) {
+    const box = el('div', 'scn-runs');
+    box.appendChild(el('div', 'scn-col-name', '📜 Прогоны'));
+    runs.forEach(run => {
+        const line = el('div', 'scn-run');
+        const ok = run.status === 'ok' || run.status === 'success';
+        line.appendChild(el('span', `scn-run-mark ${ok ? 'good' : 'bad'}`,
+                            ok ? '✓' : '✕'));
+        line.appendChild(el('span', 'scn-run-when', run.created_at || ''));
+        if (run.error) line.appendChild(el('span', 'scn-run-error', run.error));
+        box.appendChild(line);
+    });
+
+    return box;
+}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{# Страница «Сценарии» — ОБЩАЯ: лежит в submodule `dashboard`.
+   Что браузер делает на чужом сайте: шаги, переменные площадки, прогоны.
+
+   ⚠ `base.html` берётся ПРОЕКТА: у каждого своё меню и свои разделы.
+   ⚠⚠ Стили и скрипт — АБСОЛЮТНЫМ путём: относительный требовал бы файла
+   на диске проекта, то есть общего submodule при нём не бывает.
+
+   ⚠ Выбор площадки стоит в шапке, а не у каждого сценария: страница вся про
+   одну площадку — её сценарии, её переменные. Площадок у установки может не
+   быть вовсе, и тогда селект прячется, а сценарии живут общими. #}
+
+{% block title %}Сценарии{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/scenario.css">
+{% endblock %}
+
+{% block content %}
+<div class="scn-page">
+
+    <div class="scn-head">
+        <div class="scn-site" id="scnSiteBox" hidden>
+            <label for="scnSite">Площадка</label>
+            <select id="scnSite"></select>
+        </div>
+        <button type="button" class="scn-btn scn-btn-main" id="scnNew">
+            + сценарий</button>
+    </div>
+
+    <div class="scn-body">
+        {# Левая колонка: что есть. Правая: что правим. Разделение по вопросу,
+           а не по размеру — список отвечает «какие сценарии у площадки»,
+           редактор «из чего состоит этот». #}
+        <div class="scn-col scn-col-list">
+            <div class="scn-col-name">🎬 Сценарии</div>
+            <div id="scnList">
+                <div class="scn-empty">Загрузка…</div>
+            </div>
+
+            <div class="scn-col-name scn-vars-name">🔑 Переменные площадки</div>
+            <div id="scnVars"></div>
+            <form class="scn-var-add" id="scnVarAdd">
+                <input type="text" id="scnVarName" maxlength="80"
+                       placeholder="имя" required>
+                <input type="text" id="scnVarValue" placeholder="значение">
+                <label class="scn-check" title="Секрет: в журнал уйдёт под маской">
+                    <input type="checkbox" id="scnVarSecret">
+                    <span>🔒</span>
+                </label>
+                <button type="submit" class="scn-btn">+</button>
+            </form>
+        </div>
+
+        <div class="scn-col scn-col-edit">
+            <div id="scnEditor">
+                <div class="scn-empty">Выберите сценарий слева или заведите новый</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/scenario.js"></script>
+{% endblock %}

@@ -1,0 +1,454 @@
+/* Страница «Сценарии» — ОБЩАЯ: лежит в submodule `dashboard`.
+   Две колонки: слева что есть, справа что правим.
+
+   ⚠ Цвета и радиусы — те же, что у соседних страниц скелета (`user.css`,
+   `journal.css`). Своя палитра на одной странице читается как чужая вставка. */
+
+/* ⚠⚠ `width` и `overflow-y` — не оформление, а ответ на две особенности
+   контейнера каркаса (`.page-content` в `common.css`):
+
+   * он `display: flex; justify-content: center`, и блок внутри сжимается по
+     содержимому — без `width: 100%` правая колонка выходила УЖЕ левой, хотя
+     ей отдана вся оставшаяся доля: доля считалась от сжатого контейнера;
+   * он `overflow: hidden`, и прокрутки у страницы нет вовсе — сценарий на
+     двадцать шагов не пролистать. Прокрутку берёт на себя страница.
+
+   ⚠ Чинится здесь, а не в `common.css`: тот держит двухпанельный чат, и
+   правка в нём меняет все панели экосистемы разом. */
+.scn-page {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding: 16px 20px;
+    box-sizing: border-box;
+}
+
+/* ── шапка ───────────────────────────────────────────────────────────────── */
+
+.scn-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.scn-site {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scn-site[hidden] {
+    display: none;
+}
+
+.scn-site label {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.scn-site select {
+    min-width: 220px;
+    padding: 6px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #2c3e50;
+    background: #fff;
+}
+
+/* ── колонки ─────────────────────────────────────────────────────────────── */
+
+/* Левая держит ширину, правая забирает остальное: список имён узкий по
+   природе, а шаги растут и вширь (селекторы длинные). */
+.scn-body {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.scn-col {
+    padding: 14px 16px;
+    border: 1px solid #e6ebf1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.scn-col-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.scn-vars-name {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid #eef2f7;
+}
+
+.scn-empty {
+    padding: 6px 0;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+/* ── список сценариев ────────────────────────────────────────────────────── */
+
+.scn-item {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    border: 1px solid #eef2f7;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.scn-item:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.scn-item.active {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.scn-item-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.scn-item-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2c3e50;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scn-item-goal {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #94a3b8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Состояние — цветом, а не только словом: в списке из двух десятков строк
+   сломанный сценарий должен находиться взглядом, а не чтением. */
+.scn-status {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.scn-status-draft {
+    color: #64748b;
+    background: #f1f5f9;
+}
+
+.scn-status-active {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.scn-status-broken {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+/* ── переменные площадки ─────────────────────────────────────────────────── */
+
+.scn-var {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 12px;
+}
+
+.scn-var-name {
+    flex: none;
+    color: #2c3e50;
+}
+
+.scn-var-value {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #94a3b8;
+    font-family: ui-monospace, monospace;
+}
+
+.scn-var-add {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.scn-var-add input[type='text'] {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #2c3e50;
+    background: #f8fafc;
+}
+
+.scn-check {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+/* ── редактор ────────────────────────────────────────────────────────────── */
+
+.scn-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 4px 14px;
+    margin-bottom: 14px;
+}
+
+.scn-field {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0;
+}
+
+.scn-field label {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.scn-field input,
+.scn-field select {
+    margin-top: 4px;
+    padding: 6px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #2c3e50;
+    background: #f8fafc;
+}
+
+/* ── шаги ────────────────────────────────────────────────────────────────── */
+
+.scn-step {
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border: 1px solid #eef2f7;
+    border-left: 3px solid #cbd5e1;
+    border-radius: 6px;
+    background: #f8fafc;
+}
+
+.scn-step-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Номер шага виден всегда: порядок и есть сценарий, и «третий шаг падает» —
+   обычная фраза разбора. */
+.scn-step-no {
+    flex: none;
+    width: 20px;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.scn-step-head select {
+    flex: none;
+    min-width: 150px;
+    padding: 4px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font: 12px/1.4 ui-monospace, monospace;
+    color: #2c3e50;
+    background: #fff;
+}
+
+.scn-step-field {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.scn-step-field label {
+    flex: none;
+    width: 70px;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.scn-step-field input,
+.scn-step-field textarea {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font: 12px/1.4 ui-monospace, monospace;
+    color: #2c3e50;
+    background: #fff;
+}
+
+.scn-step-field textarea {
+    min-height: 68px;
+    resize: vertical;
+}
+
+/* Негодный JSON — краснеет рамка, но набранное остаётся: человек печатает, и в
+   середине ввода текст закономерно негоден. */
+.scn-bad {
+    border-color: #e74c3c;
+    background: #fef2f2;
+}
+
+.scn-step-add {
+    margin-top: 4px;
+}
+
+.scn-move {
+    flex: none;
+    width: 22px;
+    padding: 2px 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #475569;
+    background: #fff;
+    cursor: pointer;
+}
+
+.scn-move:disabled {
+    color: #cbd5e1;
+    cursor: default;
+}
+
+.scn-drop {
+    flex: none;
+    margin-left: auto;
+    padding: 0 4px;
+    border: 0;
+    font-size: 12px;
+    line-height: 1;
+    color: #cbd5e1;
+    background: none;
+    cursor: pointer;
+}
+
+.scn-drop:hover {
+    color: #e74c3c;
+}
+
+/* ── кнопки ──────────────────────────────────────────────────────────────── */
+
+.scn-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #eef2f7;
+}
+
+.scn-btn {
+    padding: 6px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #475569;
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+.scn-btn:hover:not(:disabled) {
+    border-color: #cbd5e1;
+    background: #eff6ff;
+}
+
+.scn-btn:disabled {
+    color: #cbd5e1;
+    cursor: default;
+}
+
+.scn-btn-main {
+    color: #fff;
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.scn-btn-main:hover:not(:disabled) {
+    background: #2563eb;
+}
+
+.scn-btn-bad {
+    color: #991b1b;
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+/* ── прогоны ─────────────────────────────────────────────────────────────── */
+
+.scn-runs {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #eef2f7;
+}
+
+.scn-run {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 12px;
+}
+
+.scn-run-mark {
+    flex: none;
+    width: 14px;
+}
+
+.scn-run-mark.good {
+    color: #16a34a;
+}
+
+.scn-run-mark.bad {
+    color: #e74c3c;
+}
+
+.scn-run-when {
+    flex: none;
+    color: #94a3b8;
+    font-family: ui-monospace, monospace;
+}
+
+.scn-run-error {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #991b1b;
+}
+
+/* Узкий экран: колонки встают друг под друга, редактор ниже списка — так же,
+   как читается работа (выбрал → правлю). */
+@media (max-width: 900px) {
+    .scn-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
