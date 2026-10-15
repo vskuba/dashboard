@@ -29,6 +29,7 @@
 
 import json
 import uuid
+from datetime import timedelta
 
 from mysql_.mysql_ import mysql_get_db_async
 
@@ -56,15 +57,24 @@ async def e2e_store_run_list(limit: int = 30) -> list:
         limit: сколько прогонов вернуть.
 
     Returns:
-        list: `run_uuid`, `started_at`, `tests`, `failed`, `errored`, `status`.
-        `status` прогона — худший из его строк: `error` важнее `fail`, `fail`
-        важнее `ok`.
+        list: `run_uuid`, `started_at`, `tests`, `failed`, `errored`, `status`,
+        `seconds`. `status` прогона — худший из его строк: `error` важнее `fail`,
+        `fail` важнее `ok`. `seconds` — сколько времени прогон забрал: от старта
+        своего первого случая до записи последнего.
     """
     limit = max(1, min(int(limit or 30), 200))
     async with mysql_get_db_async() as db:
         await db.execute(
             'SELECT run_uuid,'
             '       MIN(created_at)                                AS started_at,'
+            # Время прогона без отдельной колонки: у каждой строки свой `created_at`
+            # есть момент **после** её случая, а старт того случая — на `duration_ms`
+            # раньше. Значит ранняя граница прогона — минимум по `created_at` со
+            # снятым сроком случая, поздняя — максимум `created_at`. Колонку под это
+            # заводить нечем: случай писался бы дважды, числом и временем.
+            '       ROUND(TIMESTAMPDIFF(MICROSECOND,'
+            '             MIN(created_at - INTERVAL duration_ms * 1000 MICROSECOND),'
+            '             MAX(created_at)) / 1000000, 1)            AS seconds,'
             '       COUNT(*)                                       AS tests,'
             '       SUM(status = %s)                               AS failed,'
             '       SUM(status = %s)                               AS errored'
@@ -238,6 +248,30 @@ async def e2e_store_run_drop(run_uuid: str) -> int:
         return int(db.rowcount or 0)
 
 
+async def e2e_store_runs_drop_all() -> dict:
+    """Снести все прогоны разом — строки и кадры.
+
+    Returns:
+        dict: `runs` — сколько прогонов снесено, `rows` — сколько строк. Ноль —
+        это такой же законный ответ, как и везде выше: список мог быть пуст уже
+        к моменту щелчка по иконке.
+
+    ⚠ Отдельно от `e2e_store_run_drop`: та отвечает на вопрос про один прогон,
+    иконка-корзинка в шапке списка отвечает на «убрать весь список сегодня».
+    Кадры снимаются по тем же меткам, что лежат в базе, — порядок тот же, что
+    у `e2e_store_trim` и `e2e_store_run_drop`: сперва файлы, потом строки.
+    Оборвись процесс между ними, остались бы строки без кадров, а не кадры,
+    которые уже ничем не найти.
+    """
+    async with mysql_get_db_async() as db:
+        await db.execute('SELECT DISTINCT run_uuid FROM test_e2e')
+        marks = [str(dict(row)['run_uuid']) for row in await db.fetchall()]
+        for mark in marks:
+            e2e_shot_drop(mark)
+        await db.execute('DELETE FROM test_e2e')
+        return {'runs': len(marks), 'rows': int(db.rowcount or 0)}
+
+
 def _e2e_store_run_card(row: dict) -> dict:
     """Строка `GROUP BY` → карточка прогона для списка."""
     failed = int(row.get('failed') or 0)
@@ -245,6 +279,7 @@ def _e2e_store_run_card(row: dict) -> dict:
     return {
         'run_uuid': row.get('run_uuid'),
         'started_at': row.get('started_at'),
+        'seconds': round(float(row.get('seconds') or 0), 1),
         'tests': int(row.get('tests') or 0),
         'failed': failed,
         'errored': errored,
@@ -254,12 +289,18 @@ def _e2e_store_run_card(row: dict) -> dict:
 
 def _e2e_store_run_card_from_rows(run_uuid: str, cards: list) -> dict:
     """Та же карточка, посчитанная по уже прочитанным строкам: второй запрос
-    к базе ради трёх чисел не нужен."""
+    к базе ради трёх чисел не нужен. Время — то же правило, что в запросе
+    списка: старт самого раннего случая и запись самого позднего."""
     failed = sum(1 for card in cards if card['status'] == 'fail')
     errored = sum(1 for card in cards if card['status'] == 'error')
+    starts = [card['created_at'] - timedelta(seconds=(card.get('duration_ms') or 0) / 1000.0)
+              for card in cards]
+    ends = [card['created_at'] for card in cards]
+    seconds = round(max((max(ends) - min(starts)).total_seconds(), 0.0), 1) if cards else 0
     return {
         'run_uuid': run_uuid,
         'started_at': min((card['created_at'] for card in cards), default=None),
+        'seconds': seconds,
         'tests': len(cards),
         'failed': failed,
         'errored': errored,

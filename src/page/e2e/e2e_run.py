@@ -17,6 +17,7 @@
 
 import asyncio
 import os
+import time
 
 from config.config import config_get
 from logging_.logging_ import logger_exception, logger_info
@@ -38,11 +39,11 @@ E2E_RUN_CASE_DIR = (os.environ.get('E2E_CASE_DIR')
 
 # Адрес панели, у которой прогон берёт копии страниц.
 #
-# ⚠⚠ Имя сервиса, а не `localhost`. Прогон идёт из ДВУХ разных контейнеров: из
-# кронджоба (`uvicorn`) и из очереди по кнопке (`worker_task`). В первом
-# `localhost:8000` — это панель, во втором — сам воркер, и прогон по кнопке
-# падал `ConnectError: All connection attempts failed`, записывая `error` в
-# каждую строку. Имя сервиса разрешается из обоих.
+# ⚠⚠ Имя сервиса, а не `localhost`. Прогон идёт из ДВУХ разных процессов: из
+# кронджоба (`cronjob`) и из ручки панели (`uvicorn`). У второго `localhost:8000`
+# — это сам панельный сервер, а вот у первого — свой контейнер, и прогон падал
+# `ConnectError: All connection attempts failed`, записывая `error` в каждую
+# строку. Имя сервиса разрешается из обоих.
 #
 # ⚠⚠ На проде с Blue-Green нужен ПУБЛИЧНЫЙ адрес установки
 # (`https://<домен>`), а не имя контейнера: имя указывает на один слот, и после
@@ -65,8 +66,11 @@ async def e2e_run_all(folder: str = '', base: str = '') -> dict:
             `E2E_RUN_PANEL_BASE`.
 
     Returns:
-        dict: `run_uuid`, `tests`, `failed`, `errored`.
+        dict: `run_uuid`, `tests`, `failed`, `errored`, `seconds` — сколько
+        времени забрал прогон целиком, от первого случая до последней строки:
+        человек сверяет не только вердикты, но и цену проверки.
     """
+    started = time.perf_counter()
     base = base or config_get('E2E_PANEL_URL') or E2E_RUN_PANEL_BASE
     # ⚠⚠ Учётка своя, а не `ADMIN_*`. Та — личность загрузочного администратора
     # (`panel_user.py` заводит его на пустой таблице), и занимать её автоматикой
@@ -124,10 +128,11 @@ async def e2e_run_all(folder: str = '', base: str = '') -> dict:
                 errored += result['status'] == 'error'
 
     await e2e_store_trim()
+    seconds = round(time.perf_counter() - started, 1)
     logger_info(f'🧪 E2E прогон {run_uuid}: тестов {tests}, '
-                f'провалов {failed}, сорвалось {errored}')
+                f'провалов {failed}, сорвалось {errored}, заняло {seconds} с')
     return {'run_uuid': run_uuid, 'tests': tests, 'failed': failed,
-            'errored': errored, 'skipped': len(skipped)}
+            'errored': errored, 'skipped': len(skipped), 'seconds': seconds}
 
 
 async def e2e_run_one(case: dict, width: int, shots: str, base: str,

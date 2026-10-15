@@ -21,7 +21,14 @@
 <div class="e2e-page">
 
     <div class="e2e-runs">
-        <div class="e2e-runs-head">Прогоны</div>
+        <div class="e2e-runs-head">
+            <span>Прогоны</span>
+            {# Корзинка в шапке: снести весь список разом. В шапке она видна
+               всегда, в отличие от крестика на карточке: карточек тридцать,
+               икона одна, и спрятанная ручка чистки была бы ручкой без действия. #}
+            <button type="button" class="e2e-runs-clear" id="e2eRunsClear"
+                    title="Убрать все прогоны вместе с кадрами">🗑</button>
+        </div>
         <div class="e2e-runs-list" id="e2eRuns">
             <div class="e2e-empty">Загрузка…</div>
         </div>

@@ -29,7 +29,7 @@ from dashboard.src.page.e2e.e2e_run import E2E_RUN_CASE_DIR
 from dashboard.src.page.e2e.e2e_shot import e2e_shot_path
 from dashboard.src.page.e2e.e2e_store import (E2E_STORE_API_PREFIX, e2e_store_row_get,
                             e2e_store_run_drop, e2e_store_run_list,
-                            e2e_store_run_rows)
+                            e2e_store_run_rows, e2e_store_runs_drop_all)
 from dashboard.src.page.e2e.e2e_worker import e2e_worker_enqueue, e2e_worker_running
 
 
@@ -108,6 +108,17 @@ def e2e_api_router(view=None, run=None, drop=None,
         """
         return {'result': {'run_uuid': run_uuid,
                            'rows': await e2e_store_run_drop(run_uuid)}}
+
+    @router.delete('/run', include_in_schema=False)
+    async def e2e_runs_drop_all_route(user=Depends(guard_drop)):
+        """Снести все прогоны разом — корзинка в шапке списка.
+
+        ⚠ Отдельная ручка, а не `DELETE /run/{run_uuid}` без параметра: крестик
+        на карточке убирает один прогон, иконка в шапке — весь список, и вопрос
+        базе тут другой. Ответ — честный счёт снесённого; ноль такой же
+        законный ответ, как и выше.
+        """
+        return {'result': await e2e_store_runs_drop_all()}
 
     @router.get('/row/{row_id}', include_in_schema=False)
     async def e2e_row_get_route(row_id: int, user=Depends(guard_view)):

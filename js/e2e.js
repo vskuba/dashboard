@@ -15,6 +15,13 @@ let openRun = '';
 
 const STATUS_TEXT = {ok: 'прошёл', fail: 'есть провалы', error: 'сорвался'};
 
+// Время прогона человек читает по диагонали: секунды до минуты, дальше минуты —
+// «78 с» в ленте неотличима от «8 с», и цена проверки теряется.
+function fmtSec(seconds) {
+    const s = Math.round(seconds);
+    return s < 60 ? `${s} с` : `${Math.floor(s / 60)} мин ${String(s % 60).padStart(2, '0')} с`;
+}
+
 function badge(status) {
     const node = el('span', `e2e-badge ${status}`, STATUS_TEXT[status] || status);
     return node;
@@ -38,7 +45,8 @@ async function loadRuns() {
         const sub = el('div', 'e2e-run-sub');
         sub.append(badge(run.status));
         sub.append(document.createTextNode(
-            ` · тестов ${run.tests}` + (run.failed ? `, провалов ${run.failed}` : '')));
+            ` · тестов ${run.tests}` + (run.failed ? `, провалов ${run.failed}` : '')
+            + (run.seconds ? `, заняло ${fmtSec(run.seconds)}` : '')));
         node.append(sub);
 
         node.append(dropButton(run));
@@ -108,7 +116,8 @@ async function openRunRows(runUuid) {
         statusEl.textContent = STATUS_TEXT[run.status] || run.status;
         countEl.textContent = `${fmtTz(run.started_at, true)} · тестов ${run.tests}`
             + (run.failed ? ` · провалов ${run.failed}` : '')
-            + (run.errored ? ` · сорвалось ${run.errored}` : '');
+            + (run.errored ? ` · сорвалось ${run.errored}` : '')
+            + (run.seconds ? ` · заняло ${fmtSec(run.seconds)}` : '');
     } else {
         statusEl.style.display = 'none';
         countEl.textContent = '';
@@ -330,12 +339,43 @@ runBtn.onclick = async () => {
 
 document.getElementById('e2eReload').onclick = () => load();
 
+// Корзинка в шапке «Прогоны»: снести весь список разом — строки и кадры.
+document.getElementById('e2eRunsClear').onclick = async () => {
+    // ⚠ Подтверждение здесь есть там, где его нет у крестика на карточке
+    // (см. dropButton): карточка убирает один прогон, корзинка уносит месяц
+    // истории разом, включая красные вердикты, — и восстановить их нечем.
+    if (!confirm('Убрать все прогоны вместе с кадрами? Это не отменить.')) return;
+
+    try {
+        const answer = await deleteData('/api/e2e/run');
+        const result = answer.result || {};
+        showNotification(`Убрано прогонов ${result.runs}, строк ${result.rows}`, 'success');
+    } catch (err) {
+        showNotification('Прогоны не убраны: ' + err.message, 'error');
+        return;
+    }
+
+    // Открытый прогон закрыт, и правая колонка перерисовывается целиком через
+    // load(): пустой список обязан показать пустоту, а не остаться с бейджем и
+    // счётчиком прогона, которого уже нет.
+    openRun = '';
+    try {
+        await load();
+    } catch (err) {
+        showNotification(err.message, 'error');
+    }
+};
+
 async function load() {
     try {
         const runs = await loadRuns();
         if (runs.length) {
             await openRunRows(openRun || runs[0].run_uuid);
         } else {
+            // Пусто — правая колонка обязана молчать о прогоне, которого нет:
+            // тот же вид пустоты, что у `openRunRows` с пустым прогоном.
+            statusEl.style.display = 'none';
+            countEl.textContent = '';
             listEl.replaceChildren(el('div', 'e2e-empty',
                 'Прогонов ещё не было. Случаи лежат в tests_e2e/, прогон идёт раз в сутки.'));
         }
