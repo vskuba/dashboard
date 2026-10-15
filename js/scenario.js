@@ -289,6 +289,8 @@ function stepRow(step, at) {
     select.onchange = () => { step.action = select.value; renderEditor(); };
     head.appendChild(select);
 
+    head.appendChild(stepSubmit(step));
+    head.appendChild(stepShot(step));
     head.appendChild(moveButton('↑', at, -1));
     head.appendChild(moveButton('↓', at, 1));
 
@@ -305,6 +307,58 @@ function stepRow(step, at) {
     });
 
     return row;
+}
+
+// Отметка «этим шаг отправляет заказ». ⚠⚠ Без неё прогон не умеет
+// останавливаться перед кнопкой: репетиция и отправка — один сценарий,
+// делённый по этому признаку, и сценарий без него отправить нельзя вовсе.
+function stepSubmit(step) {
+    const label = el('label', 'scn-mark' + (step.submit ? ' on' : ''), '');
+    label.title = 'необратимый шаг: нажатие «оформить». '
+        + 'Всё после него прогоняется только при включённой отправке';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = !!step.submit;
+    box.onchange = () => { step.submit = box.checked; renderEditor(); };
+    label.appendChild(box);
+    label.appendChild(el('span', null, '⏎ отправка'));
+
+    return label;
+}
+
+// Отметка «снять кадр после этого шага». ⚠ Текст — подпись кадра: он уедет в
+// колонку обработанных, и «кадр 2» человеку ничего не скажет.
+function stepShot(step) {
+    const label = el('label', 'scn-mark' + (step.shot ? ' on' : ''), '');
+    label.title = 'снять кадр после шага; текст станет подписью под превью';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = !!step.shot;
+    box.onchange = () => {
+        // ⚠ Пустая подпись у включённой галочки бессмысленна: кадр снимется,
+        // но человек не поймёт, какой он по счёту. Подставляем умолчание и
+        // даём править.
+        step.shot = box.checked ? (step.shot || 'этап заполнен') : '';
+        renderEditor();
+    };
+    label.appendChild(box);
+    label.appendChild(el('span', null, '📷 кадр'));
+
+    if (step.shot) {
+        const text = document.createElement('input');
+        text.type = 'text';
+        text.className = 'scn-shot-title';
+        text.value = step.shot;
+        text.maxLength = 120;
+        text.title = 'подпись кадра';
+        text.oninput = () => { step.shot = text.value; };
+        // ⚠ Клик по полю не должен снимать галочку: поле лежит внутри `label`,
+        // и без этого ввод подписи выключал бы кадр.
+        text.onclick = event => event.preventDefault();
+        label.appendChild(text);
+    }
+
+    return label;
 }
 
 function stepField(step, name) {

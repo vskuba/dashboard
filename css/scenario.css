@@ -472,3 +472,35 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* Отметки шага: «отправка» и «кадр». ⚠ Выключенные бледные, включённые
+   цветные: в сценарии на двадцать шагов отмеченные должны находиться
+   взглядом, а не чтением. */
+.scn-mark {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #94a3b8;
+    background: #fff;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.scn-mark.on {
+    color: #166534;
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+}
+
+.scn-shot-title {
+    width: 150px;
+    padding: 1px 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font: 11px/1.4 ui-monospace, monospace;
+    color: #2c3e50;
+}
