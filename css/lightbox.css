@@ -1,0 +1,80 @@
+/* Карусель кадров: крупный кадр и стрелки по бокам. Живёт внутри общего
+   модального окна (`modal.css`) — рамку, крестик и подложку даёт оно. */
+
+/* ⚠⚠ Окно под кадр шире и выше обычного: умолчание модалки (920×760) считано
+   под текст и форму, и кадр страницы магазина при нём срезается снизу — как
+   раз по кнопке «Оформить», ради которой кадр и смотрят. */
+.lightbox-back .modal {
+    width: min(1400px, 96vw);
+    max-height: 94vh;
+}
+
+.lightbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ⚠⚠ `min-width: 0` обязателен: без него flex-элемент не ужимается ниже
+   ширины своего содержимого, и высокий кадр выдавливает стрелки за край
+   окна — молча, без прокрутки и без следа в консоли. */
+.lightbox-stage {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+/* Кадр вписывается в окно целиком: и по ширине, и по высоте. ⚠ Высота в `vh`,
+   а не в процентах — проценты считались бы от высоты родителя, которой у него
+   нет, и длинная страница уезжала бы за нижний край экрана. */
+.lightbox-img {
+    max-width: 100%;
+    max-height: 78vh;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.lightbox-step {
+    flex: none;
+    width: 38px;
+    height: 64px;
+    padding: 0;
+    font-size: 26px;
+    line-height: 1;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.lightbox-step:hover:not(:disabled) {
+    background: #e2e8f0;
+}
+
+/* ⚠ Крайний кадр гасит стрелку, а не прячет её: исчезнувшая кнопка сдвигает
+   кадр, и следующий щелчок попадает не туда, куда целились. */
+.lightbox-step:disabled {
+    opacity: .3;
+    cursor: default;
+}
+
+/* На узком экране стрелки уходят под кадр: по бокам они съедали бы ту самую
+   ширину, ради которой человек и открыл кадр крупно. */
+@media (max-width: 700px) {
+    .lightbox {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .lightbox-stage {
+        order: -1;
+        flex-basis: 100%;
+    }
+
+    .lightbox-step {
+        width: 64px;
+        height: 38px;
+    }
+}
