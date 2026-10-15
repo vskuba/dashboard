@@ -1,0 +1,42 @@
+/* Пейджер списка — ОБЩИЙ: лежит в submodule `dashboard`.
+
+   ⚠ Классы нарочно короткие и без приставки страницы (`pager`, а не
+   `data-pager`): пейджер один на все списки всех панелей, и имя, привязанное к
+   одной странице, пришлось бы дублировать на второй.
+
+   ⚠ Палитра та же, что у кнопок панели: пейджер — часть страницы, а не
+   вставка, и своя гамма читалась бы как чужой виджет. */
+
+.pager {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0 2px;
+}
+
+.pager-btn {
+    padding: 5px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #475569;
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+.pager-btn:hover:not(:disabled) {
+    border-color: #cbd5e1;
+    background: #eff6ff;
+}
+
+/* Выключенная кнопка остаётся на месте, а не прячется: исчезающая «назад»
+   двигала бы «вперёд» под курсором ровно в тот момент, когда по ней целятся. */
+.pager-btn:disabled {
+    color: #cbd5e1;
+    cursor: default;
+}
+
+.pager-at {
+    font: 12px/1 ui-monospace, monospace;
+    color: #64748b;
+}
