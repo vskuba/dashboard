@@ -24,6 +24,15 @@ const STATUS_LABEL = {draft: 'черновик', active: 'в работе', brok
 // с которой сценарии не начинают. Переход открывает почти каждый.
 const STEP_DEFAULT = 'goto';
 
+// Чем помечена переменная в шаге. ⚠ Тот же вид, что у слоя
+// (`BROWSER_SCENARIO_VAR_RE`): буквы, цифры, подчёркивание. Шире нельзя —
+// фигурные скобки встречаются и сами по себе, в CSS-селекторах и JSON.
+const VAR_RE = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+
+// В каких полях шага ищем переменные. ⚠ Не во всех подряд: `fields` — список
+// записей, и строковый поиск по нему дал бы имена из чужой разметки.
+const VAR_FIELDS = ['url', 'selector', 'value', 'key', 'name'];
+
 // Где лежит выбранная площадка. В localStorage, а не в сессии: выбор — свойство
 // этой машины и этой вкладки человека, серверу он не нужен ни для чего.
 const SITE_KEY = 'panel_scenario_site';
@@ -40,10 +49,25 @@ let actions = [];
 let statuses = [];
 let site = 0;
 
+// Имена переменных площадки. ⚠ Держим отдельно от их значений: секретные
+// приходят под маской, и значение нам здесь не нужно — нужен ответ «подставит
+// ли сервер эту переменную сам».
+let siteVarNames = [];
+
 // Сценарий, открытый в правой колонке. ⚠ Копия, а не ссылка на строку списка:
 // человек правит шаги и может уйти, не сохранив, — список при этом обязан
 // показывать то, что лежит на сервере.
 let draft = null;
+
+// Какой шаг показан в колонке настроек. ⚠ Номер, а не ссылка на объект: шаги
+// переставляют и удаляют, и ссылка пережила бы свой шаг, показывая настройки
+// того, кого уже нет.
+let stepAt = 0;
+
+// Какая подвкладка открыта: «шаги» или «граф». ⚠ Живёт между перерисовками:
+// правка поля перерисовывает редактор целиком, и без памяти человека
+// выбрасывало бы из графа на каждом нажатии клавиши.
+let pane = 'steps';
 
 document.getElementById('scnNew').onclick = () => openDraft(null);
 document.getElementById('scnVarAdd').onsubmit = saveVariable;
@@ -116,6 +140,10 @@ function renderList(rows) {
 
 function renderVars(rows) {
     varsBox.innerHTML = '';
+    // ⚠ Имена запоминаются здесь, а не считаются в колонке переменных: та
+    // перерисовывается на каждое нажатие клавиши, и ходить за ними заново
+    // значило бы считать одно и то же сотни раз за минуту правки.
+    siteVarNames = (rows || []).map(row => row.name);
     if (!site) {
         varsBox.appendChild(el('div', 'scn-empty', 'переменные у площадки'));
         return;
@@ -206,9 +234,42 @@ function renderEditor() {
     }
 
     editorBox.appendChild(editorHead());
-    editorBox.appendChild(stepsBox());
+    editorBox.appendChild(editorTabs());
+    editorBox.appendChild(pane === 'graph' ? graphBox() : stepsPane());
     editorBox.appendChild(editorButtons());
     if (draft.runs && draft.runs.length) editorBox.appendChild(runsBox(draft.runs));
+}
+
+// Две подвкладки: «Шаги» — что правим, «Граф» — что получится.
+//
+// ⚠⚠ Это разные вопросы, а не два вида одного. В шагах человек правит селектор
+// и значение; в графе он смотрит, откуда куда идёт работа и какая переменная
+// в каком шаге всплывает. Второе по списку из тридцати строк не читается.
+function editorTabs() {
+    const box = el('div', 'scn-subtabs');
+    [['steps', '👣 Шаги'], ['graph', '🕸 Граф']].forEach(([code, title]) => {
+        const btn = el('button', 'scn-subtab' + (pane === code ? ' on' : ''), title);
+        btn.type = 'button';
+        btn.onclick = () => { pane = code; renderEditor(); };
+        box.appendChild(btn);
+    });
+
+    return box;
+}
+
+// Подвкладка «Шаги»: переменные | список | настройки выбранного.
+//
+// ⚠⚠ Три колонки, а не лента карточек. Лента тратила ширину впустую: поля шага
+// занимали треть экрана, остальное пустовало, и чтобы увидеть десятый шаг,
+// приходилось прокручивать мимо девяти развёрнутых. Теперь список шагов виден
+// целиком, а правится тот, на который нажали.
+function stepsPane() {
+    const box = el('div', 'scn-panes');
+    box.appendChild(varsPane());
+    box.appendChild(stepsList());
+    box.appendChild(stepCard());
+
+    return box;
 }
 
 function editorHead() {
@@ -230,8 +291,44 @@ function editorHead() {
     select.onchange = () => { draft.status = select.value; };
     line.appendChild(select);
     box.appendChild(line);
+    box.appendChild(paceField());
 
     return box;
+}
+
+// Темп: пауза между шагами, случайная в этих пределах.
+//
+// ⚠⚠ Сайту виден РИТМ. Браузер без пауз делает десяток действий в секунду —
+// человек так не умеет, и для защиты это примета заметнее любого заголовка:
+// отпечаток подделывается заголовками, ритм — нет.
+//
+// ⚠ Свойство сценария, а не площадки: разведка должна идти быстро —
+// правдоподобие там никому не нужно, — а оформление заказа обязано выглядеть
+// живым. Это разные сценарии на одной площадке.
+function paceField() {
+    const line = el('div', 'scn-field scn-field-pace');
+    line.appendChild(el('label', null, 'Темп, мс'));
+
+    const box = el('div', 'scn-pace');
+    ['pace_min_ms', 'pace_max_ms'].forEach((key, at) => {
+        if (at) box.appendChild(el('span', 'scn-pace-dash', '…'));
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.max = '60000';
+        input.className = 'scn-pace-input';
+        input.value = draft[key] === undefined ? '' : draft[key];
+        input.title = at ? 'верхняя граница паузы' : 'нижняя граница паузы';
+        input.oninput = () => { draft[key] = Number(input.value) || 0; };
+        box.appendChild(input);
+    });
+    // ⚠ Подпись обязательна: два числа без неё читаются как что угодно, а ноль
+    // в обоих — законное значение «без пауз», и человек должен знать, что оно
+    // значит, не открывая документацию.
+    box.appendChild(el('span', 'scn-pace-note', 'пауза перед шагом; 0 — без пауз'));
+    line.appendChild(box);
+
+    return line;
 }
 
 function field(title, key, placeholder) {
@@ -247,23 +344,237 @@ function field(title, key, placeholder) {
     return line;
 }
 
-// ── шаги ───────────────────────────────────────────────────────────────────
+// ── колонка 1: переменные и куда они идут ──────────────────────────────────
 
-function stepsBox() {
-    const box = el('div', 'scn-steps');
-    box.appendChild(el('div', 'scn-col-name', '👣 Шаги'));
-    (draft.steps || []).forEach((step, at) => box.appendChild(stepRow(step, at)));
+// Какие переменные сценарий поминает и в каких шагах. ⚠ Читаются ИЗ ШАГОВ, а
+// не из отдельного списка: список пришлось бы вести руками, и он расходился бы
+// с шагами в первую же правку — причём молча.
+function varsUsed() {
+    const found = new Map();
+    (draft.steps || []).forEach((step, at) => {
+        VAR_FIELDS.forEach(name => {
+            const text = String(step[name] === undefined ? '' : step[name]);
+            for (const hit of text.matchAll(VAR_RE)) {
+                const key = hit[1];
+                if (!found.has(key)) found.set(key, []);
+                const rows = found.get(key);
+                if (!rows.includes(at)) rows.push(at);
+            }
+        });
+    });
+
+    return found;
+}
+
+function varsPane() {
+    const box = el('div', 'scn-pane scn-pane-vars');
+    box.appendChild(el('div', 'scn-pane-name', '🔑 Переменные'));
+
+    const used = varsUsed();
+    if (!used.size) {
+        box.appendChild(el('div', 'scn-empty',
+            'Сценарий не поминает ни одной переменной. Напишите {{phone}} в '
+            + 'поле шага — она появится здесь.'));
+        return box;
+    }
+
+    // ⚠ Переменная площадки отмечена: её значение подставит сервер, остальные
+    // обязан передать тот, кто запускает, — и перепутать эти два случая значит
+    // получить отказ «не переданы переменные» уже на прогоне.
+    const known = new Set((draft.variables ? Object.keys(draft.variables) : [])
+        .concat(siteVarNames));
+
+    [...used.entries()].forEach(([name, rows]) => {
+        const one = el('div', 'scn-var-used');
+        const head = el('div', 'scn-var-head');
+        head.appendChild(el('b', null, `{{${name}}}`));
+        if (known.has(name)) {
+            head.appendChild(el('span', 'scn-var-mark', 'площадки'));
+        }
+        one.appendChild(head);
+        // Куда идёт: номера шагов. Щелчок открывает шаг — это и есть ответ на
+        // вопрос «а где она используется».
+        const where = el('div', 'scn-var-steps');
+        rows.forEach(at => {
+            const link = el('button', 'scn-var-step', `${at + 1}`);
+            link.type = 'button';
+            link.title = (draft.steps[at] || {}).action || '';
+            link.onclick = () => { stepAt = at; renderEditor(); };
+            where.appendChild(link);
+        });
+        one.appendChild(where);
+        box.appendChild(one);
+    });
+
+    return box;
+}
+
+// ── колонка 2: список шагов ────────────────────────────────────────────────
+
+// Коротко о шаге: что делает и над чем. ⚠ Без этого список — столбик из
+// «fill, fill, fill», по которому нужный шаг не найти.
+function stepShort(step) {
+    const spec = actions.find(one => one.action === step.action);
+    const first = (spec ? spec.fields : []).find(
+        name => name !== 'fields' && step[name]);
+
+    return first ? String(step[first]).slice(0, 48) : '';
+}
+
+function stepsList() {
+    const box = el('div', 'scn-pane scn-pane-steps');
+    box.appendChild(el('div', 'scn-pane-name', '👣 Шаги'));
+
+    const list = el('div', 'scn-list-steps');
+    (draft.steps || []).forEach((step, at) => {
+        const row = el('button', 'scn-line' + (at === stepAt ? ' on' : ''), '');
+        row.type = 'button';
+        row.appendChild(el('span', 'scn-line-no', `${at + 1}`));
+        row.appendChild(el('span', 'scn-line-act', step.action));
+        const short = stepShort(step);
+        if (short) row.appendChild(el('span', 'scn-line-what', short));
+        // Отметки значками: они важны для понимания хода и должны читаться из
+        // списка, не открывая шаг.
+        if (step.shot) row.appendChild(el('span', 'scn-line-mark', '📷'));
+        if (step.submit) row.appendChild(el('span', 'scn-line-mark', '⏎'));
+        row.onclick = () => { stepAt = at; renderEditor(); };
+        list.appendChild(row);
+    });
+    box.appendChild(list);
 
     const add = el('button', 'scn-btn scn-step-add', '+ шаг');
     add.type = 'button';
     add.onclick = () => {
         draft.steps.push({action: STEP_DEFAULT});
+        stepAt = draft.steps.length - 1;
         renderEditor();
     };
     box.appendChild(add);
 
     return box;
 }
+
+// ── колонка 3: настройки выбранного шага ───────────────────────────────────
+
+function stepCard() {
+    const box = el('div', 'scn-pane scn-pane-card');
+    const steps = draft.steps || [];
+    // ⚠ Номер подрезается здесь, а не при удалении: шаг могли убрать, и
+    // `stepAt` пережил бы его, показывая пустоту либо чужие настройки.
+    if (stepAt >= steps.length) stepAt = Math.max(0, steps.length - 1);
+
+    if (!steps.length) {
+        box.appendChild(el('div', 'scn-pane-name', '⚙️ Шаг'));
+        box.appendChild(el('div', 'scn-empty', 'Шагов пока нет — заведите первый'));
+        return box;
+    }
+
+    box.appendChild(el('div', 'scn-pane-name', `⚙️ Шаг ${stepAt + 1}`));
+    box.appendChild(stepRow(steps[stepAt], stepAt));
+
+    return box;
+}
+
+// ── подвкладка «Граф»: откуда куда идёт работа ─────────────────────────────
+
+// Что за шаг по смыслу: от этого зависит, каким он нарисован. ⚠ Не ради
+// красоты: в цепочке из тридцати узлов глаз ищет переходы и отправку, а
+// заполнение полей читает как фон.
+const GRAPH_KIND = {
+    goto: 'move', wait_url: 'move',
+    click: 'act', hover: 'act', press: 'act', select: 'act', scroll: 'act',
+    fill: 'input', type: 'input', upload: 'input',
+    wait_for: 'wait', wait_ms: 'wait', wait_stable: 'wait', wait_text: 'wait',
+    extract: 'take', extract_rows: 'take', read_text: 'take',
+    net_dump: 'take', console_dump: 'take', download: 'take',
+    assert_text: 'check',
+};
+
+// Граф сценария: цепочка узлов сверху вниз, переменные — подписями на узлах.
+//
+// ⚠⚠ Рисуется своей разметкой, а не библиотекой диаграмм. Страница панели не
+// тянет ничего извне (та же причина, по которой здесь нет CDN), а цепочка без
+// ветвлений — это список со стрелками: библиотека на полтораста килобайт
+// рисовала бы ровно то же самое.
+//
+// ⚠ Сценарий линеен по построению: ветвлений в шагах нет вовсе
+// (`BROWSER_SCENARIO_ACTIONS`), и рисовать их значило бы обещать то, чего
+// сценарий не умеет.
+function graphBox() {
+    const box = el('div', 'scn-graph');
+    const steps = draft.steps || [];
+    if (!steps.length) {
+        box.appendChild(el('div', 'scn-empty',
+            'Шагов нет — граф появится, когда они будут'));
+        return box;
+    }
+
+    const used = varsUsed();
+    // Переменная → в каких шагах всплывает; здесь нужен обратный разворот:
+    // шаг → какие переменные он поминает.
+    const byStep = new Map();
+    used.forEach((rows, name) => rows.forEach(at => {
+        if (!byStep.has(at)) byStep.set(at, []);
+        byStep.get(at).push(name);
+    }));
+
+    box.appendChild(graphStart());
+    steps.forEach((step, at) => {
+        box.appendChild(graphArrow());
+        box.appendChild(graphNode(step, at, byStep.get(at) || []));
+    });
+
+    return box;
+}
+
+// Откуда всё начинается. ⚠ Узел «старт» нужен: без него первый шаг читается
+// как продолжение чего-то, что было до — а до него не было ничего.
+function graphStart() {
+    const node = el('div', 'scn-node scn-node-start');
+    node.appendChild(el('div', 'scn-node-act', '▶ старт'));
+    if (draft.start_url) {
+        node.appendChild(el('div', 'scn-node-what', draft.start_url));
+    }
+
+    return node;
+}
+
+function graphArrow() {
+    return el('div', 'scn-arrow', '↓');
+}
+
+function graphNode(step, at, vars) {
+    const kind = GRAPH_KIND[step.action] || 'act';
+    const node = el('button', `scn-node kind-${kind}`
+        + (at === stepAt ? ' on' : '') + (step.submit ? ' submit' : ''), '');
+    node.type = 'button';
+    // ⚠ Щелчок уводит в «Шаги» на этот шаг: граф отвечает на вопрос «где», и
+    // естественное следующее движение — «покажи».
+    node.onclick = () => { stepAt = at; pane = 'steps'; renderEditor(); };
+
+    const head = el('div', 'scn-node-head');
+    head.appendChild(el('span', 'scn-node-no', `${at + 1}`));
+    head.appendChild(el('span', 'scn-node-act', step.action));
+    if (step.shot) head.appendChild(el('span', 'scn-node-mark', '📷'));
+    if (step.submit) head.appendChild(el('span', 'scn-node-mark', '⏎'));
+    node.appendChild(head);
+
+    const short = stepShort(step);
+    if (short) node.appendChild(el('div', 'scn-node-what', short));
+
+    // ⚠⚠ Переменные подписаны на том узле, где уходят в страницу. Отдельным
+    // списком сбоку они отвечали бы «какие есть», а вопрос другой — «куда
+    // попадает телефон покупателя».
+    if (vars.length) {
+        const line = el('div', 'scn-node-vars');
+        vars.forEach(name => line.appendChild(
+            el('span', 'scn-node-var', `{{${name}}}`)));
+        node.appendChild(line);
+    }
+
+    return node;
+}
+
 
 // Один шаг: действие селектом, поля — те, что это действие требует.
 //
@@ -441,6 +752,7 @@ async function saveDraft(btn) {
             id: draft.id, site_id: site, name: draft.name, goal: draft.goal,
             start_url: draft.start_url, status: draft.status,
             steps: draft.steps, variables: draft.variables || {},
+            pace_min_ms: draft.pace_min_ms, pace_max_ms: draft.pace_max_ms,
         });
         showNotification(`Сценарий «${result.name}» сохранён`, 'success');
         draft = {...result, steps: result.steps || [], runs: draft.runs || []};

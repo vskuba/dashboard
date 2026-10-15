@@ -72,6 +72,11 @@ class ScenarioPageSaveIn(BaseModel):
     status: str = 'draft'
     steps: list = Field(default_factory=list)
     variables: dict = Field(default_factory=dict)
+    # Темп: пауза перед каждым шагом, случайная в этих пределах. ⚠ `None`, а не
+    # ноль по умолчанию: ноль значит «без пауз», то есть нечеловеческий ритм, и
+    # получать его от клиента, который про темп ничего не прислал, нельзя.
+    pace_min_ms: int | None = Field(None, ge=0, le=60000)
+    pace_max_ms: int | None = Field(None, ge=0, le=60000)
 
 
 class ScenarioPageRunIn(BaseModel):
@@ -174,7 +179,9 @@ def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
                 payload.name, payload.steps, site_id=payload.site_id,
                 goal=payload.goal, start_url=payload.start_url,
                 variables=payload.variables, status=payload.status,
-                scenario_id=payload.id)
+                scenario_id=payload.id,
+                pace_min_ms=payload.pace_min_ms,
+                pace_max_ms=payload.pace_max_ms)
         except ValueError as fault:
             raise HTTPException(422, str(fault)) from fault
 

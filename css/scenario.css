@@ -504,3 +504,321 @@
     font: 11px/1.4 ui-monospace, monospace;
     color: #2c3e50;
 }
+
+/* ── подвкладки редактора: шаги и граф ──────────────────────────────────── */
+
+.scn-subtabs {
+    display: flex;
+    gap: 6px;
+    margin: 10px 0 12px;
+    border-bottom: 1px solid #e6ebf1;
+}
+
+.scn-subtab {
+    padding: 6px 14px;
+    font-size: 13px;
+    color: #64748b;
+    background: none;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+}
+
+.scn-subtab:hover { color: #334155; background: #f8fafc; }
+
+/* ⚠ Выбранная вкладка «съедает» нижнюю границу полосы: без этого она выглядит
+   отдельной кнопкой, а не открытым листом. */
+.scn-subtab.on {
+    color: #1d4ed8;
+    font-weight: 600;
+    background: #fff;
+    border-color: #e6ebf1;
+    margin-bottom: -1px;
+    border-bottom: 1px solid #fff;
+}
+
+/* ── три колонки: переменные | шаги | настройки шага ────────────────────── */
+
+/* ⚠⚠ Раньше шаги шли лентой карточек, и это тратило ширину впустую: поля шага
+   занимали треть экрана, остальное пустовало, а чтобы увидеть десятый шаг,
+   приходилось прокручивать мимо девяти развёрнутых. */
+.scn-panes {
+    display: grid;
+    grid-template-columns: 190px minmax(240px, 1fr) minmax(300px, 1.3fr);
+    gap: 12px;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .scn-panes { grid-template-columns: 1fr; }
+}
+
+.scn-pane {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #e6ebf1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.scn-pane-name {
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+}
+
+/* ── колонка 1: переменные ──────────────────────────────────────────────── */
+
+.scn-var-used {
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.scn-var-used:last-child { border-bottom: none; }
+
+.scn-var-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font: 12px/1.4 ui-monospace, monospace;
+    color: #1e293b;
+}
+
+/* Переменная площадки: её значение подставит сервер. ⚠ Отметка не украшение —
+   остальные обязан передать тот, кто запускает, и перепутать эти два случая
+   значит получить «не переданы переменные» уже на прогоне. */
+.scn-var-mark {
+    padding: 0 5px;
+    font: 10px/1.6 system-ui, sans-serif;
+    color: #166534;
+    background: #dcfce7;
+    border-radius: 8px;
+}
+
+.scn-var-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.scn-var-step {
+    min-width: 22px;
+    padding: 1px 5px;
+    font: 11px/1.5 ui-monospace, monospace;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.scn-var-step:hover { color: #1d4ed8; background: #dbeafe; }
+
+/* ── колонка 2: список шагов ────────────────────────────────────────────── */
+
+.scn-list-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.scn-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+    padding: 5px 7px;
+    text-align: left;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.scn-line:hover { background: #f8fafc; }
+
+.scn-line.on {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.scn-line-no {
+    flex: none;
+    min-width: 18px;
+    font: 11px/1.5 ui-monospace, monospace;
+    color: #94a3b8;
+    text-align: right;
+}
+
+.scn-line-act {
+    flex: none;
+    font: 12px/1.5 ui-monospace, monospace;
+    color: #1e293b;
+}
+
+/* Над чем шаг работает. ⚠ Обрезается многоточием, а не переносится: строка на
+   два ряда ломает ритм списка, по которому глаз и ищет нужный шаг. */
+.scn-line-what {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.scn-line-mark { flex: none; font-size: 11px; }
+
+/* ── колонка 3: настройки выбранного шага ───────────────────────────────── */
+
+/* Карточка шага внутри колонки рамки не несёт: рамка уже есть у самой колонки,
+   и вторая вокруг единственного шага читается как лишняя вложенность. */
+.scn-pane-card .scn-step {
+    padding: 0;
+    border: none;
+    background: none;
+}
+
+/* ── темп сценария ──────────────────────────────────────────────────────── */
+
+/* ⚠ Подпись переносится под поля, а не стоит рядом: в колонке сетки шапки
+   места под неё нет, и сбоку она сжималась в столбик по одному слову. */
+.scn-pace {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    margin-top: 4px;
+}
+
+/* ⚠ Ширина задана: глобальное `input{width:100%}` растянуло бы число на всю
+   колонку, и два поля темпа заняли бы место, которого в шапке нет. */
+.scn-pace-input {
+    width: 72px;
+    flex: none;
+    padding: 6px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.scn-pace-dash { color: #94a3b8; }
+
+.scn-pace-note {
+    flex-basis: 100%;
+    font-size: 10px;
+    line-height: 1.2;
+    color: #94a3b8;
+}
+
+/* ── подвкладка «Граф» ──────────────────────────────────────────────────── */
+
+.scn-graph {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 12px 0;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.scn-node {
+    width: min(460px, 100%);
+    padding: 8px 12px;
+    text-align: left;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-left: 3px solid #cbd5e1;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.scn-node:hover { border-color: #93c5fd; }
+
+.scn-node.on {
+    background: #eff6ff;
+    border-color: #60a5fa;
+}
+
+/* Цвет кромки — по смыслу шага. ⚠ Не ради красоты: в цепочке из тридцати узлов
+   глаз ищет переходы и отправку, а заполнение полей читает как фон. */
+.scn-node.kind-move  { border-left-color: #6366f1; }
+.scn-node.kind-act   { border-left-color: #0ea5e9; }
+.scn-node.kind-input { border-left-color: #22c55e; }
+.scn-node.kind-wait  { border-left-color: #cbd5e1; }
+.scn-node.kind-take  { border-left-color: #f59e0b; }
+.scn-node.kind-check { border-left-color: #a855f7; }
+
+/* ⚠⚠ Шаг отправки виден издалека: после него на площадке появился заказ, и
+   отменить его нельзя. Это единственный необратимый узел в цепочке. */
+.scn-node.submit {
+    border-color: #fca5a5;
+    border-left-color: #dc2626;
+    background: #fff7f7;
+}
+
+.scn-node-start {
+    border-left-color: #16a34a;
+    background: #f7fdf9;
+    cursor: default;
+}
+
+.scn-node-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.scn-node-no {
+    min-width: 18px;
+    font: 11px/1.5 ui-monospace, monospace;
+    color: #94a3b8;
+}
+
+.scn-node-act {
+    font: 600 12px/1.5 ui-monospace, monospace;
+    color: #1e293b;
+}
+
+.scn-node-mark { font-size: 11px; }
+
+.scn-node-what {
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 11px/1.4 ui-monospace, monospace;
+    color: #64748b;
+}
+
+/* Переменные подписаны на том узле, где уходят в страницу. ⚠ Отдельным списком
+   сбоку они отвечали бы «какие есть», а вопрос другой — «куда попадает телефон
+   покупателя». */
+.scn-node-vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 5px;
+}
+
+.scn-node-var {
+    padding: 0 5px;
+    font: 10px/1.6 ui-monospace, monospace;
+    color: #92400e;
+    background: #fef3c7;
+    border-radius: 4px;
+}
+
+.scn-arrow {
+    font-size: 14px;
+    line-height: 1;
+    color: #cbd5e1;
+    padding: 3px 0;
+}
