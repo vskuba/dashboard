@@ -265,6 +265,10 @@ def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
 
         ⚠⚠ Упавший сценарий — это 200 со `status: "error"` внутри (см. шапку
         модуля). Пятисотка уводила бы чужой отказ в журнал ошибок установки.
+
+        ⚠ Плёнка складывается (`film=True`): прогон отсюда — разовый и
+        целиком, и смотрят его потом на вкладке «История», где вопрос именно
+        «что сценарий видел», а не «чем кончился».
         """
         row = await browser_scenario_get(scenario_id)
         if not row:
@@ -272,7 +276,7 @@ def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
 
         return {'result': await browser_scenario_execute(
             row, variables=payload.variables, secrets=payload.secrets,
-            proxy=payload.proxy)}
+            proxy=payload.proxy, film=True)}
 
     @router.get('/{scenario_id}/runs', include_in_schema=False)
     async def scenario_page_runs(scenario_id: int, limit: int = SCENARIO_PAGE_RUNS,
