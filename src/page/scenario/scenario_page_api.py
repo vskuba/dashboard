@@ -39,6 +39,7 @@ HTTP: сервер отработал верно, не отработал чуж
 from browser_.browser_scenario import BROWSER_SCENARIO_ACTIONS
 from browser_.browser_scenario_store import (browser_scenario_execute,
                                              browser_scenario_get,
+                                             browser_scenario_history_clear,
                                              browser_scenario_list,
                                              browser_scenario_remove,
                                              browser_scenario_film_path,
@@ -51,8 +52,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from dashboard.src.page.scenario.scenario_page_store import \
-    scenario_page_store_history_clear
 from dashboard.src.panel.panel_auth import (panel_auth_admin_required,
                                             panel_auth_need)
 
@@ -225,8 +224,7 @@ def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
         разбираются по порядку объявления, и «history» под шаблоном читался
         бы как номер сценария.
         """
-        return {'result': await scenario_page_store_history_clear(
-            payload.site_id)}
+        return {'result': await browser_scenario_history_clear(payload.site_id)}
 
     @router.get('/run/{run_id}/film', include_in_schema=False)
     async def scenario_page_film(run_id: int, user=Depends(guard_view)):
