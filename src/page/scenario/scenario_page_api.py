@@ -41,12 +41,14 @@ from browser_.browser_scenario_store import (browser_scenario_execute,
                                              browser_scenario_get,
                                              browser_scenario_list,
                                              browser_scenario_remove,
+                                             browser_scenario_film_path,
                                              browser_scenario_runs,
                                              browser_scenario_save)
 from browser_.browser_site_variable import (browser_site_variable_list,
                                             browser_site_variable_remove,
                                             browser_site_variable_save)
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from dashboard.src.panel.panel_auth import (panel_auth_admin_required,
@@ -55,6 +57,11 @@ from dashboard.src.panel.panel_auth import (panel_auth_admin_required,
 # Сколько прогонов показать под сценарием. Не весь журнал: человеку важно
 # последнее, а ленту целиком читает тот, кто разбирает отказ.
 SCENARIO_PAGE_RUNS = 20
+
+# Сколько прогонов показывает история. ⚠ Двадцать, а не сто: её смотрят, чтобы
+# понять «что было только что», и сотня плёнок по полмегабайта — это полсотни
+# мегабайт, которые браузер потянет при каждом открытии вкладки.
+SCENARIO_PAGE_HISTORY = 20
 
 # Состояния сценария. ⚠ Не свободная строка: по ним страница красит строку, и
 # четвёртое состояние «почти работает» завелось бы само собой.
@@ -150,6 +157,62 @@ def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
                         for name, fields in sorted(BROWSER_SCENARIO_ACTIONS.items())],
             'statuses': list(SCENARIO_PAGE_STATUSES),
         }}
+
+    @router.get('/history', include_in_schema=False)
+    async def scenario_page_history(site_id: int = 0,
+                                    limit: int = SCENARIO_PAGE_HISTORY,
+                                    user=Depends(guard_view)):
+        """Последние прогоны площадки с плёнками: что и как шло.
+
+        ⚠⚠ Стоит ВЫШЕ `/{scenario_id}` намеренно. Пути одной группы
+        разбираются по порядку объявления, и «history» под шаблоном читался
+        как номер сценария — ручка отвечала «Сценарий: нужно число».
+        Поймано кадром страницы, а не кодом.
+
+        ⚠⚠ Прогоны ВСЕХ сценариев вместе, а не одного. История отвечает на
+        вопрос «что тут происходило», и перебирать ради него сценарии по
+        одному значит заставлять человека искать то, что должно само лежать
+        перед глазами.
+
+        ⚠ Трасса и собранное из ответа убраны: списком их не читают, а на
+        длинном сценарии это десятки килобайт на строку — двадцать прогонов
+        дали бы мегабайт ради двадцати подписей. Нужна трасса — её отдаёт
+        `/{id}/runs`.
+        """
+        rows = await browser_scenario_runs(limit=limit * 8, site_id=site_id)
+
+        # ⚠⚠ Только прогоны С ПЛЁНКОЙ. Сценарий гоняют и пошагово — отрезками
+        # по одному шагу, чтобы рассказывать о каждом, — и в журнал ложится
+        # запись на КАЖДЫЙ шаг: семьдесят одна на одну карточку заказа.
+        # Истории нужна работа целиком, а её отмечает плёнка: она собирается
+        # один раз, тем, кто вёл сценарий от начала до конца.
+        rows = [row for row in rows if int(row.get('film_frames') or 0)][:limit]
+
+        return {'result': [{
+            'id': row['id'],
+            'scenario_id': row['scenario_id'],
+            'scenario': row.get('scenario_name') or '',
+            'status': row['status'],
+            'step_no': row['step_no'],
+            'error': str(row.get('error') or '')[:300],
+            'duration_ms': row['duration_ms'],
+            'created_at': row['created_at'],
+            'frames': int(row.get('film_frames') or 0),
+        } for row in rows]}
+
+    @router.get('/run/{run_id}/film', include_in_schema=False)
+    async def scenario_page_film(run_id: int, user=Depends(guard_view)):
+        """Плёнка прогона — сам GIF.
+
+        ⚠ Путь собирает хранилище (`browser_scenario_film_path`), а не эта
+        ручка: имя в базе проверяется там же, где записывается, и второе
+        место сверки разошлось бы с первым.
+        """
+        whole = await browser_scenario_film_path(run_id)
+        if not whole:
+            raise HTTPException(404, 'плёнки у этого прогона нет')
+
+        return FileResponse(whole, media_type='image/gif')
 
     @router.get('/{scenario_id}', include_in_schema=False)
     async def scenario_page_one(scenario_id: int,

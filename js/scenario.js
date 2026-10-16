@@ -16,6 +16,7 @@
 import {getData, postData} from '/static/js/api.js';
 import {showNotification} from '/static/js/notification.js';
 import {el} from '/static/js/page_dom.js';
+import {pageTabs} from '/static/js/tabs.js';
 
 const STATUS_LABEL = {draft: 'черновик', active: 'в работе', broken: 'сломан'};
 
@@ -36,6 +37,20 @@ const VAR_FIELDS = ['url', 'selector', 'value', 'key', 'name'];
 // Где лежит выбранная площадка. В localStorage, а не в сессии: выбор — свойство
 // этой машины и этой вкладки человека, серверу он не нужен ни для чего.
 const SITE_KEY = 'panel_scenario_site';
+
+// Какая вкладка открыта. В localStorage, как и прочий выбор человека:
+// вернувшись, он застаёт то, с чем работал.
+const TAB_KEY = 'panel_scenario_tab';
+
+const showTab = pageTabs({
+    box: document.getElementById('scnTabs'),
+    panes: {work: document.getElementById('scnPaneWork'),
+            history: document.getElementById('scnPaneHistory')},
+    key: TAB_KEY, fallback: 'work',
+    // ⚠ История грузится при ОТКРЫТИИ вкладки, а не при загрузке страницы:
+    // это двадцать GIF, и платить за них тому, кто правит шаги, незачем.
+    onShow: code => { if (code === 'history') loadHistory(); },
+});
 
 const listBox = document.getElementById('scnList');
 const varsBox = document.getElementById('scnVars');
@@ -74,6 +89,11 @@ document.getElementById('scnVarAdd').onsubmit = saveVariable;
 siteSel.onchange = () => {
     localStorage.setItem(SITE_KEY, siteSel.value);
     load(siteSel.value);
+    // ⚠ История принадлежит площадке: сменили её — список прогонов другой.
+    // Открытую вкладку спрашиваем у хранилища: `pageTabs` отдаёт только
+    // функцию показа, и заводить рядом вторую память о том же было бы
+    // способом разойтись с ней.
+    if (localStorage.getItem(TAB_KEY) === 'history') loadHistory();
 };
 
 load(localStorage.getItem(SITE_KEY) || 0);
@@ -817,4 +837,105 @@ function runsBox(runs) {
     });
 
     return box;
+}
+
+// ── история прогонов ───────────────────────────────────────────────────────
+//
+// ⚠⚠ Плёнка здесь главное, а не подпись. Трасса отвечает «что делал
+// сценарий» — список шагов с кодами; плёнка отвечает «что при этом видел
+// браузер», и разбирают обычно второе: на каком экране шаг не нашёл кнопку,
+// что стояло в форме, когда она отказалась уходить.
+
+const histBox = document.getElementById('scnHistory');
+const histCount = document.getElementById('scnHistCount');
+
+// Сколько времени заняло: секунды, а не миллисекунды. ⚠ «93 480 мс» человек
+// всё равно делит в уме, и делает это хуже машины.
+//
+// ⚠⚠ Длительность берётся у ПОСЛЕДНЕГО шага, а не у всей работы: прогон
+// карточки идёт пошагово, и в журнале у каждого шага своё время. «0 с» в
+// истории — это честное время последнего шага, но отвечает оно не на тот
+// вопрос, поэтому показываем его только когда оно заметное.
+function histTime(ms) {
+    const sec = Math.round(Number(ms || 0) / 1000);
+    if (!sec) return '';
+
+    return sec < 60 ? `${sec} с`
+        : `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+async function loadHistory() {
+    try {
+        const {result} = await getData(
+            `/api/scenario/history?site_id=${Number(siteSel.value) || 0}`);
+        renderHistory(result || []);
+    } catch (e) {
+        histBox.innerHTML = '';
+        histBox.appendChild(el('div', 'scn-empty', String(e.message || e)));
+    }
+}
+
+function renderHistory(rows) {
+    histCount.textContent = rows.length
+        ? `${rows.length} последних` : '';
+
+    histBox.innerHTML = '';
+    if (!rows.length) {
+        histBox.appendChild(el('div', 'scn-empty',
+            'Прогонов ещё не было. Запустите сценарий — здесь появится плёнка '
+            + 'того, что видел браузер.'));
+
+        return;
+    }
+
+    rows.forEach(row => histBox.appendChild(histRow(row)));
+}
+
+function histRow(row) {
+    const box = el('div', 'scn-run' + (row.status === 'error' ? ' is-bad' : ''));
+
+    const head = el('div', 'scn-run-head');
+    head.appendChild(el('span', 'scn-run-mark' + (row.status === 'error' ? ' bad' : ''),
+                        row.status === 'error' ? 'ошибка' : 'прошёл'));
+    head.appendChild(el('b', 'scn-run-name', row.scenario || 'сценарий'));
+    head.appendChild(el('span', 'scn-run-when', fmtWhen(row.created_at)));
+    head.appendChild(el('span', 'scn-run-time', histTime(row.duration_ms)));
+    box.appendChild(head);
+
+    // ⚠ Ошибка — строкой под шапкой, а не в подсказке: ради неё сюда и
+    // пришли, если прогон упал.
+    if (row.error) {
+        box.appendChild(el('div', 'scn-run-error',
+                           `шаг ${row.step_no}: ${row.error}`));
+    }
+
+    // ⚠⚠ Плёнка грузится ЛЕНИВО (`loading="lazy"`): двадцать GIF по полмегабайта
+    // — десять мегабайт на открытие вкладки, и браузер анимирует их все разом.
+    if (row.frames) {
+        const film = document.createElement('img');
+        film.className = 'scn-run-film';
+        film.src = `/api/scenario/run/${row.id}/film`;
+        film.alt = `плёнка прогона: ${row.frames} кадров`;
+        film.loading = 'lazy';
+        film.title = `${row.frames} кадров — нажмите, чтобы открыть крупно`;
+        film.onclick = () => window.open(film.src, '_blank');
+        box.appendChild(film);
+    } else {
+        box.appendChild(el('div', 'scn-run-nofilm',
+                           'плёнки нет: сценарий ничего не изменил на экране'));
+    }
+
+    return box;
+}
+
+// ⚠ Своё время, а не `time.js`: у прогона важны часы и минуты, а дата нужна
+// только вчерашним — иначе список превращается в столбец одинаковых дат.
+function fmtWhen(when) {
+    if (!when) return '';
+
+    const at = new Date(when);
+    const today = new Date().toDateString() === at.toDateString();
+    const hhmm = at.toTimeString().slice(0, 5);
+
+    return today ? hhmm : `${at.toLocaleDateString()} ${hhmm}`;
 }

@@ -14,6 +14,11 @@
 {% block title %}Сценарии{% endblock %}
 
 {% block head %}
+{# ⚠⚠ Стиль вкладок — отдельным файлом и ПЕРЕД своим. Он общий для всех
+   предметных страниц панели, и без него разметка `page-tabs` остаётся голой:
+   кнопки налезают друг на друга, а скрытая панель видна (`[hidden]` не
+   перебивает `display: flex`). Поймано кадром — в коде этого не видно. #}
+<link rel="stylesheet" href="/static/css/tabs.css">
 <link rel="stylesheet" href="/static/css/scenario.css">
 {% endblock %}
 
@@ -29,6 +34,16 @@
             + сценарий</button>
     </div>
 
+    {# Две вкладки: чем работаем и что уже отработало. ⚠ История отдельной
+       вкладкой, а не колонкой: у сценариев своя работа (правка шагов), у
+       истории своя (разбор прошедшего), и делить между ними один экран значит
+       мешать обеим. #}
+    <div class="page-tabs" id="scnTabs">
+        <button type="button" class="page-tab" data-tab="work">🎬 Сценарии</button>
+        <button type="button" class="page-tab" data-tab="history">🎞️ История</button>
+    </div>
+
+    <section class="page-pane" id="scnPaneWork" hidden>
     <div class="scn-body">
         {# Левая колонка: что есть. Правая: что правим. Разделение по вопросу,
            а не по размеру — список отвечает «какие сценарии у площадки»,
@@ -59,6 +74,18 @@
             </div>
         </div>
     </div>
+    </section>
+
+    {# История: последние прогоны площадки плёнками. ⚠⚠ Плёнка здесь главное,
+       а не подпись: трасса отвечает «что делал сценарий», а плёнка — «что при
+       этом видел браузер», и разбирают обычно второе. #}
+    <section class="page-pane" id="scnPaneHistory" hidden>
+        <div class="scn-hist-head">
+            <div class="scn-col-name">🎞️ Последние прогоны</div>
+            <span class="scn-hist-note" id="scnHistCount"></span>
+        </div>
+        <div id="scnHistory"><div class="scn-empty">Загрузка…</div></div>
+    </section>
 </div>
 {% endblock %}
 
