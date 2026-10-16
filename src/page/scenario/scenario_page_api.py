@@ -195,7 +195,12 @@ def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
             'status': row['status'],
             'step_no': row['step_no'],
             'error': str(row.get('error') or '')[:300],
-            'duration_ms': row['duration_ms'],
+            # ⚠⚠ Полная длительность, а не своя у записи. Длинный сценарий
+            # гоняют отрезками — по шагу за поход, — и `duration_ms` у
+            # последнего это миллисекунды одного шага: история показывала
+            # «0 с» при работе в минуту. Ноль в `total_ms` — прогон был
+            # одиночный, и своя длительность у него и есть полная.
+            'duration_ms': int(row.get('total_ms') or 0) or row['duration_ms'],
             'created_at': row['created_at'],
             'frames': int(row.get('film_frames') or 0),
         } for row in rows]}
