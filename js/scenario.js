@@ -848,14 +848,55 @@ function runsBox(runs) {
 
 const histBox = document.getElementById('scnHistory');
 const histCount = document.getElementById('scnHistCount');
+const histClear = document.getElementById('scnHistClear');
+
+histClear.onclick = clearHistory;
+
+// Убрать историю: записи прогонов и файлы плёнок этой площадки.
+//
+// ⚠⚠ Спрашиваем ЧИСЛОМ, а не «вы уверены?». Человек видит девять карточек, а
+// в журнале их может быть и сорок — у соседних площадок свои. Вопрос называет
+// то, что исчезнет, и площадку, у которой оно исчезнет.
+//
+// ⚠ Удаление необратимо: плёнки лежат файлами, и корзины у них нет.
+async function clearHistory() {
+    const where = siteSel.options[siteSel.selectedIndex];
+    const whose = where ? ` площадки «${where.textContent}»` : '';
+    if (!confirm(`Убрать историю прогонов${whose}? Плёнки удалятся с диска.`)) return;
+
+    histClear.disabled = true;
+    try {
+        const {result} = await postData('/api/scenario/history/clear',
+                                        {site_id: Number(siteSel.value) || 0});
+        showNotification(
+            result.runs ? `Убрано прогонов: ${result.runs}` : 'Убирать было нечего',
+            'success');
+        await loadHistory();
+    } catch (e) {
+        showNotification(String(e.message || e), 'error');
+    } finally {
+        histClear.disabled = false;
+    }
+}
+
+// Сколько шагов в плёнке, с правильным окончанием: «1 шаг», «2 шага»,
+// «15 шагов». ⚠ Склонение вручную, а не `Intl.PluralRules`: тот отвечает
+// категорией («one», «few», «many»), и слова для неё всё равно пришлось бы
+// перечислять здесь же — только через ещё один слой.
+function steps(count) {
+    const n = Number(count || 0);
+    const tail = n % 100 >= 11 && n % 100 <= 14 ? 0 : n % 10;
+    const word = tail === 1 ? 'шаг' : (tail >= 2 && tail <= 4 ? 'шага' : 'шагов');
+
+    return `${n} ${word}`;
+}
 
 // Сколько времени заняло: секунды, а не миллисекунды. ⚠ «93 480 мс» человек
 // всё равно делит в уме, и делает это хуже машины.
 //
-// ⚠⚠ Длительность берётся у ПОСЛЕДНЕГО шага, а не у всей работы: прогон
-// карточки идёт пошагово, и в журнале у каждого шага своё время. «0 с» в
-// истории — это честное время последнего шага, но отвечает оно не на тот
-// вопрос, поэтому показываем его только когда оно заметное.
+// ⚠ Ноль не показываем вовсе: у прогона-отрезка работа короче секунды, и
+// «0 с» рядом со временем старта читается как потерянное значение. Полную
+// длительность приносит ручка (`total_ms`), своя у записи — запасная.
 function histTime(ms) {
     const sec = Math.round(Number(ms || 0) / 1000);
     if (!sec) return '';
@@ -910,9 +951,12 @@ function histRow(row) {
         const film = document.createElement('img');
         film.className = 'scn-film-shot';
         film.src = `/api/scenario/run/${row.id}/film`;
-        film.alt = `плёнка прогона: ${row.frames} кадров`;
+        // ⚠ Считаем ШАГИ, а не кадры: на самой плёнке кадры подписаны
+        // «Шаг N», и подсказка «15 кадров» рядом с ними читается как второй,
+        // другой счёт. Число одно и то же — слово должно быть тем же.
+        film.alt = `плёнка прогона: ${steps(row.frames)}`;
         film.loading = 'lazy';
-        film.title = `${row.frames} кадров — нажмите, чтобы открыть крупно`;
+        film.title = `${steps(row.frames)} — нажмите, чтобы открыть крупно`;
         film.onclick = () => window.open(film.src, '_blank');
         box.appendChild(film);
     } else {

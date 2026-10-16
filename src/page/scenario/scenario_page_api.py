@@ -51,6 +51,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from dashboard.src.page.scenario.scenario_page_store import \
+    scenario_page_store_history_clear
 from dashboard.src.panel.panel_auth import (panel_auth_admin_required,
                                             panel_auth_need)
 
@@ -112,6 +114,12 @@ class ScenarioPageDropIn(BaseModel):
     """Что убрать — по номеру."""
 
     id: int
+
+
+class ScenarioPageHistoryClearIn(BaseModel):
+    """Чью историю чистим; `0` — всю, какая есть."""
+
+    site_id: int = 0
 
 
 def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
@@ -204,6 +212,21 @@ def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
             'created_at': row['created_at'],
             'frames': int(row.get('film_frames') or 0),
         } for row in rows]}
+
+    @router.post('/history/clear', include_in_schema=False)
+    async def scenario_page_history_clear(payload: ScenarioPageHistoryClearIn,
+                                          user=Depends(guard_update)):
+        """Очистить историю прогонов: записи и файлы плёнок.
+
+        ⚠ Право на ПРАВКУ, а не на просмотр: это удаление, пусть и
+        вспомогательных данных.
+
+        ⚠⚠ Стоит ВЫШЕ `/{scenario_id}`, как и `/history`: пути одной группы
+        разбираются по порядку объявления, и «history» под шаблоном читался
+        бы как номер сценария.
+        """
+        return {'result': await scenario_page_store_history_clear(
+            payload.site_id)}
 
     @router.get('/run/{run_id}/film', include_in_schema=False)
     async def scenario_page_film(run_id: int, user=Depends(guard_view)):

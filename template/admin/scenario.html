@@ -83,6 +83,10 @@
         <div class="scn-hist-head">
             <div class="scn-col-name">🎞️ Последние прогоны</div>
             <span class="scn-hist-note" id="scnHistCount"></span>
+            {# ⚠ Кнопка прижата вправо, подальше от счётчика: это удаление, и
+               соседство с подписью приглашало бы нажать её мимоходом. #}
+            <button type="button" class="scn-btn scn-btn-bad scn-hist-clear"
+                    id="scnHistClear">очистить историю</button>
         </div>
         <div id="scnHistory"><div class="scn-empty">Загрузка…</div></div>
     </section>
