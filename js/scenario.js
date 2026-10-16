@@ -891,29 +891,24 @@ function renderHistory(rows) {
     rows.forEach(row => histBox.appendChild(histRow(row)));
 }
 
+// ⚠⚠ Карточка, а не строка во всю ширину. Плёнка снята полной страницей и в
+// натуральную величину занимает экран целиком: четыре прогона — и до пятого
+// надо листать минуту. Превью в 200 точек отвечает на вопрос «тот ли это
+// прогон», а подробности смотрят, открыв его крупно.
+//
+// ⚠ Классы свои (`scn-film-*`), а не общие `scn-run-*`: теми же именами
+// размечен компактный список прогонов под сценарием, и одно правило чинило
+// бы его, ломая другое. Так уже случилось: `width: 14px` оттуда резал чип
+// «прошёл» до «прошё» здесь.
 function histRow(row) {
-    const box = el('div', 'scn-run' + (row.status === 'error' ? ' is-bad' : ''));
-
-    const head = el('div', 'scn-run-head');
-    head.appendChild(el('span', 'scn-run-mark' + (row.status === 'error' ? ' bad' : ''),
-                        row.status === 'error' ? 'ошибка' : 'прошёл'));
-    head.appendChild(el('b', 'scn-run-name', row.scenario || 'сценарий'));
-    head.appendChild(el('span', 'scn-run-when', fmtWhen(row.created_at)));
-    head.appendChild(el('span', 'scn-run-time', histTime(row.duration_ms)));
-    box.appendChild(head);
-
-    // ⚠ Ошибка — строкой под шапкой, а не в подсказке: ради неё сюда и
-    // пришли, если прогон упал.
-    if (row.error) {
-        box.appendChild(el('div', 'scn-run-error',
-                           `шаг ${row.step_no}: ${row.error}`));
-    }
+    const bad = row.status === 'error';
+    const box = el('figure', 'scn-film' + (bad ? ' is-bad' : ''));
 
     // ⚠⚠ Плёнка грузится ЛЕНИВО (`loading="lazy"`): двадцать GIF по полмегабайта
     // — десять мегабайт на открытие вкладки, и браузер анимирует их все разом.
     if (row.frames) {
         const film = document.createElement('img');
-        film.className = 'scn-run-film';
+        film.className = 'scn-film-shot';
         film.src = `/api/scenario/run/${row.id}/film`;
         film.alt = `плёнка прогона: ${row.frames} кадров`;
         film.loading = 'lazy';
@@ -921,8 +916,33 @@ function histRow(row) {
         film.onclick = () => window.open(film.src, '_blank');
         box.appendChild(film);
     } else {
-        box.appendChild(el('div', 'scn-run-nofilm',
-                           'плёнки нет: сценарий ничего не изменил на экране'));
+        box.appendChild(el('div', 'scn-film-none',
+                           'плёнки нет: ничего не изменилось на экране'));
+    }
+
+    const cap = el('figcaption', 'scn-film-cap');
+
+    // ⚠ Исход — точкой, а не словом. В карточке шириной 200 точек чип
+    // «прошёл» съедает строку, которая нужна имени сценария; цвет читается
+    // боковым зрением, а слово остаётся в подсказке.
+    cap.appendChild(el('span', 'scn-film-dot' + (bad ? ' bad' : ''), ''))
+        .title = bad ? 'прогон упал' : 'прогон прошёл';
+    cap.appendChild(el('b', 'scn-film-name', row.scenario || 'сценарий'))
+        .title = row.scenario || '';
+    // ⚠ Разделитель только между тем, что есть. Длительность у прогона
+    // бывает нулевой (отрезок короче секунды), и приклеенная точка висела в
+    // карточке одна — «17:41 · » читается как потерянное значение.
+    cap.appendChild(el('span', 'scn-film-when',
+                       [fmtWhen(row.created_at), histTime(row.duration_ms)]
+                           .filter(Boolean).join(' · ')));
+    box.appendChild(cap);
+
+    // ⚠ Ошибка — строкой в карточке, а не в подсказке: ради неё сюда и
+    // пришли, если прогон упал. Длинную обрезает CSS, целиком она в title.
+    if (row.error) {
+        box.appendChild(el('div', 'scn-film-error',
+                           `шаг ${row.step_no}: ${row.error}`))
+            .title = `шаг ${row.step_no}: ${row.error}`;
     }
 
     return box;

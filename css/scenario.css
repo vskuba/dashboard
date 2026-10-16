@@ -839,13 +839,37 @@
     color: #94a3b8;
 }
 
-/* ⚠⚠ `block`, а не flex: колонкой тут идут шапка, ошибка и плёнка — в
-   строку их не ставят. Без явного режима родительский flex страницы
-   растягивал строки по высоте плёнки, и шапка уезжала вниз, под картинку. */
-.scn-run {
-    display: block;
-    margin-bottom: 14px;
-    padding: 10px 12px;
+/* ── история прогонов: плёнки плиткой ─────────────────────────────────────
+ *
+ * ⚠⚠ Сетка фиксированных колонок, а не `minmax(200px, 1fr)`. С `1fr`
+ * колонки растягиваются, заполняя строку: на широком экране «превью в 200
+ * точек» превращается в превью в 420, и смысл плитки теряется. Здесь колонка
+ * ровно 200, а сколько их влезло — считает `auto-fill`.
+ *
+ * ⚠ `justify-content: start` обязателен: без него остаток строки
+ * распределяется между колонками, и ряды из разного числа карточек стоят с
+ * разным шагом — глазу это читается как сбой вёрстки.
+ */
+#scnHistory {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 200px);
+    justify-content: start;
+    gap: 16px 14px;
+}
+
+/* ⚠ Пустое сообщение и отказ — во всю ширину сетки, а не колонкой в 200
+   точек: «Прогонов ещё не было…» в такой колонке встаёт лесенкой из
+   восьми строк. */
+#scnHistory .scn-empty {
+    grid-column: 1 / -1;
+}
+
+.scn-film {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 8px;
     background: #fff;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
@@ -854,71 +878,96 @@
 /* ⚠ Красная кромка слева, а не красный фон: упавший прогон надо отличать
    боковым зрением, но читать его содержимое приходится так же, как у
    прошедшего. */
-.scn-run.is-bad {
+.scn-film.is-bad {
     border-left: 3px solid #dc2626;
 }
 
-/* ⚠ `flex-wrap` и отступы между своими: без них метка, имя и время сходятся
-   вплотную — «прошёлзаказ гостем 17:21» читается как одно слово. Поймано
-   кадром. */
-.scn-run-head {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 4px 10px;
-    margin-bottom: 8px;
-}
-
-/* ⚠⚠ `flex: none` и `white-space: nowrap` вместе. Первое не даёт чипу
-   сжиматься под длинным именем сценария, второе — переносить слово: без
-   второго «прошёл» обрезался до «прошё» прямо в рамке. Поймано кадром. */
-.scn-run-mark {
-    flex: none;
-    white-space: nowrap;
-    padding: 1px 7px;
-    font-size: 11px;
-    color: #166534;
-    background: #dcfce7;
-    border-radius: 10px;
-}
-
-.scn-run-mark.bad {
-    color: #991b1b;
-    background: #fee2e2;
-}
-
-.scn-run-name {
-    font-size: 14px;
-    flex: 1;
-    min-width: 0;
-}
-
-.scn-run-when,
-.scn-run-time {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 11px;
-    color: #94a3b8;
-}
-
-.scn-run-error {
-    margin-bottom: 8px;
-    font-size: 12px;
-    line-height: 1.4;
-    color: #991b1b;
-}
-
-/* Сама плёнка. ⚠ Ширина ограничена, а не «во всю»: GIF снят в 600 точек, и
-   растянутый он становится мылом. */
-.scn-run-film {
+/* Превью плёнки.
+ *
+ * ⚠⚠ Высота фиксирована, и без этого плитки нет вовсе: плёнки сняты полной
+ * страницей, а страницы разной длины (карточка товара втрое длиннее формы).
+ * При свободной высоте карточки встают лесенкой — замер на живых прогонах
+ * давал в одном ряду 1135 и 380 точек.
+ *
+ * ⚠ `object-position: top`: вверху страницы шапка магазина и то, с чем
+ * сценарий работает, — по ним прогон и узнают. Обрезается низ, где подвал.
+ */
+.scn-film-shot {
     display: block;
     width: 100%;
-    max-width: 600px;
+    height: 240px;
+    object-fit: cover;
+    object-position: top;
+    background: #f8fafc;
     border: 1px solid #c7ddf5;
     border-radius: 6px;
     cursor: zoom-in;
 }
 
-.scn-run-nofilm {
+/* Место плёнки, когда её нет: тот же габарит, иначе соседние карточки в ряду
+   подпрыгивают. */
+.scn-film-none {
+    display: flex;
+    align-items: center;
+    height: 240px;
+    padding: 0 10px;
     font-size: 12px;
+    line-height: 1.4;
     color: #94a3b8;
+    background: #f8fafc;
+    border: 1px dashed #dbe3ec;
+    border-radius: 6px;
+}
+
+.scn-film-cap {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+/* ⚠⚠ Исход — точкой, а не словом. Чип «прошёл» в карточке шириной 200 точек
+   съедал строку, нужную имени сценария, а при старых общих стилях ещё и
+   обрезался до «прошё»: `width: 14px` от компактного списка прогонов резал
+   его прямо в рамке. Цвет читается боковым зрением, слово — в подсказке. */
+.scn-film-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    background: #16a34a;
+    border-radius: 50%;
+}
+
+.scn-film-dot.bad {
+    background: #dc2626;
+}
+
+/* ⚠ `min-width: 0` при `flex: 1` обязателен: без него обрезка не работает —
+   flex-элемент не ужимается ниже своего содержимого, и длинное имя
+   выталкивает время за край карточки. */
+.scn-film-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scn-film-when {
+    flex: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* ⚠ Две строки, дальше обрезка: отказ площадки бывает в полэкрана, и
+   карточка под него растянула бы весь ряд. Целиком он в подсказке. */
+.scn-film-error {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #991b1b;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
