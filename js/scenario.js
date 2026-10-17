@@ -49,7 +49,20 @@ const showTab = pageTabs({
     key: TAB_KEY, fallback: 'work',
     // ⚠ История грузится при ОТКРЫТИИ вкладки, а не при загрузке страницы:
     // это двадцать GIF, и платить за них тому, кто правит шаги, незачем.
-    onShow: code => { if (code === 'history') loadHistory(); },
+    //
+    // ⚠⚠ Через `queueMicrotask`, и это не украшение. `pageTabs` зовёт
+    // `onShow` СРАЗУ, восстанавливая вкладку из памяти, — а узлы истории
+    // (`histBox` и соседи) объявлены ниже по модулю через `const`. Прямой
+    // вызов попадал в их «мёртвую зону»: `ReferenceError: Cannot access
+    // 'histBox' before initialization`, и у человека, у которого открыта
+    // «История», страница навсегда застывала на «Загрузка…».
+    //
+    // ⚠ Ошибка тихая вдвойне: она рвёт исполнение модуля на середине, но
+    // разметка уже нарисована — страница выглядит живой и просто не
+    // отвечает. Поймано кадром, а не консолью.
+    onShow: code => {
+        if (code === 'history') queueMicrotask(loadHistory);
+    },
 });
 
 const listBox = document.getElementById('scnList');
