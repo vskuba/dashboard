@@ -20,6 +20,10 @@ import {pageTabs} from '/static/js/tabs.js';
 
 const STATUS_LABEL = {draft: 'черновик', active: 'в работе', broken: 'сломан'};
 
+// Под какую вёрстку писаны шаги. ⚠ Список закрыт в общем слое
+// (`BROWSER_SCENARIO_DEVICES`); порядок — «любая» первой, это умолчание.
+const DEVICE_LABEL = {any: 'любая', desktop: 'десктоп', mobile: 'телефон'};
+
 // Каким действием заводится новый шаг. ⚠ Не первое из справочника: тот
 // отсортирован по алфавиту, и новый шаг выходил бы `assert_text` — проверкой,
 // с которой сценарии не начинают. Переход открывает почти каждый.
@@ -66,6 +70,7 @@ const showTab = pageTabs({
 });
 
 const listBox = document.getElementById('scnList');
+const devicesBox = document.getElementById('scnDevices');
 const varsBox = document.getElementById('scnVars');
 const editorBox = document.getElementById('scnEditor');
 const siteSel = document.getElementById('scnSite');
@@ -76,6 +81,17 @@ const siteBox = document.getElementById('scnSiteBox');
 let actions = [];
 let statuses = [];
 let site = 0;
+
+// Сценарии площадки как их отдал сервер. ⚠ Держим целиком, а не только
+// показанные: отбор по вёрстке переключают часто, и ходить за теми же
+// строками на сервер ради скрытия двух из восьми — расточительство, которое
+// к тому же мигает списком.
+let scenarios = [];
+
+// Какие вёрстки показывать. ⚠ Обе по умолчанию: список отвечает «какие
+// сценарии есть у площадки», и спрятать половину, пока человек не попросил,
+// значит соврать в ответе.
+const deviceOn = {desktop: true, mobile: true};
 
 // Имена переменных площадки. ⚠ Держим отдельно от их значений: секретные
 // приходят под маской, и значение нам здесь не нужно — нужен ответ «подставит
@@ -151,17 +167,85 @@ function renderSites(sites) {
 
 // ── левая колонка: сценарии и переменные ───────────────────────────────────
 
+// Кнопки отбора по вёрстке: нажата — такие сценарии видны.
+//
+// ⚠ Иконки, а не слова: место в шапке списка меряется пикселями, а «десктоп /
+// телефон» рядом с заголовком их съедает. Что значит иконка, говорит
+// подсказка.
+//
+// ⚠⚠ Ноутбук, а не монитор (🖥). У монитора знак U+1F5A5 с вариационным
+// селектором, и в шрифтах его часто нет: на кадре он вышел пустым
+// прямоугольником, то есть кнопка выглядела сломанной. Поймано кадром — в
+// консоли о недостающем глифе не говорят.
+const DEVICE_ICON = {desktop: '💻', mobile: '📱'};
+
+
+// Показывать ли сценарий этой вёрстки при нынешнем отборе.
+//
+// ⚠⚠ `any` подчиняется ОБЕИМ кнопкам: такой сценарий годен и туда, и сюда, и
+// прятать его, пока хоть одна вёрстка показана, значит прятать годное.
+// Исчезает он только когда выключены обе — и тогда список пуст честно.
+function deviceShown(device) {
+    const code = device || 'any';
+    if (code === 'any') return deviceOn.desktop || deviceOn.mobile;
+
+    return Boolean(deviceOn[code]);
+}
+
+
+function renderDevices() {
+    if (!devicesBox) return;
+    devicesBox.innerHTML = '';
+
+    Object.keys(DEVICE_ICON).forEach(code => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'scn-device-btn' + (deviceOn[code] ? ' on' : '');
+        btn.textContent = DEVICE_ICON[code];
+        btn.title = deviceOn[code]
+            ? `${DEVICE_LABEL[code]}: показаны — нажмите, чтобы скрыть`
+            : `${DEVICE_LABEL[code]}: скрыты — нажмите, чтобы показать`;
+        btn.onclick = () => {
+            deviceOn[code] = !deviceOn[code];
+            renderDevices();
+            renderList();
+        };
+        devicesBox.appendChild(btn);
+    });
+}
+
+// ⚠ Без довода перерисовывает уже полученные строки: так кнопка отбора не
+// ходит на сервер. С доводом — запоминает новый ответ.
 function renderList(rows) {
+    if (rows !== undefined) scenarios = rows || [];
+    renderDevices();
+
     listBox.innerHTML = '';
-    if (!(rows || []).length) {
+    if (!scenarios.length) {
         listBox.appendChild(el('div', 'scn-empty', 'сценариев пока нет'));
         return;
     }
 
-    rows.forEach(row => {
+    const shown = scenarios.filter(row => deviceShown(row.device));
+    if (!shown.length) {
+        listBox.appendChild(el('div', 'scn-empty',
+                               'отбор по вёрстке не оставил ни одного'));
+        return;
+    }
+
+    shown.forEach(row => {
         const item = el('div', 'scn-item' + (draft && draft.id === row.id ? ' active' : ''));
         const head = el('div', 'scn-item-head');
         head.appendChild(el('span', 'scn-item-name', row.name));
+        // ⚠ Вёрстка — в СПИСКЕ, а не только в форме: два сценария с почти
+        // одинаковыми именами («заказ гостем» и «заказ гостем · телефон»)
+        // иначе различаются одним словом в конце, которое обрезается.
+        // «Любую» не пишем — это умолчание, и чип у каждой строки стал бы
+        // шумом.
+        if (row.device && row.device !== 'any') {
+            head.appendChild(el('span', `scn-device scn-device-${row.device}`,
+                                DEVICE_LABEL[row.device] || row.device));
+        }
         head.appendChild(el('span', `scn-status scn-status-${row.status}`,
                             STATUS_LABEL[row.status] || row.status));
         item.appendChild(head);
@@ -324,9 +408,37 @@ function editorHead() {
     select.onchange = () => { draft.status = select.value; };
     line.appendChild(select);
     box.appendChild(line);
+    box.appendChild(deviceField());
     box.appendChild(paceField());
 
     return box;
+}
+
+// Под какую вёрстку писаны шаги.
+//
+// ⚠⚠ Сайт отдаёт телефону ДРУГУЮ вёрстку: колонки в одну, кнопки шага
+// рисуются дважды и лишняя прячется. Шаги по десктопной разметке на узком
+// окне находят не то — и падают по таймауту, а выглядит это как «сломался
+// сайт».
+//
+// ⚠ «Любая» — не отговорка, а честный ответ для разведки и сбора данных: им
+// вёрстка и правда безразлична, выбирать там не из чего.
+function deviceField() {
+    const line = el('div', 'scn-field');
+    line.appendChild(el('label', null, 'Вёрстка'));
+
+    const select = document.createElement('select');
+    Object.entries(DEVICE_LABEL).forEach(([code, text]) => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = text;
+        opt.selected = code === (draft.device || 'any');
+        select.appendChild(opt);
+    });
+    select.onchange = () => { draft.device = select.value; };
+    line.appendChild(select);
+
+    return line;
 }
 
 // Темп: пауза между шагами, случайная в этих пределах.
@@ -786,6 +898,7 @@ async function saveDraft(btn) {
             start_url: draft.start_url, status: draft.status,
             steps: draft.steps, variables: draft.variables || {},
             pace_min_ms: draft.pace_min_ms, pace_max_ms: draft.pace_max_ms,
+            device: draft.device || 'any',
         });
         showNotification(`Сценарий «${result.name}» сохранён`, 'success');
         draft = {...result, steps: result.steps || [], runs: draft.runs || []};

@@ -85,6 +85,10 @@ class ScenarioPageSaveIn(BaseModel):
     # получать его от клиента, который про темп ничего не прислал, нельзя.
     pace_min_ms: int | None = Field(None, ge=0, le=60000)
     pace_max_ms: int | None = Field(None, ge=0, le=60000)
+    # Под какую вёрстку писаны шаги. ⚠ Список закрыт в общем слое
+    # (`BROWSER_SCENARIO_DEVICES`), проверяет его модель сценария: своей
+    # проверки здесь нет намеренно — второй список разошёлся бы с первым.
+    device: str = Field('any', max_length=10)
 
 
 class ScenarioPageRunIn(BaseModel):
@@ -271,7 +275,8 @@ def scenario_page_api_router(view=None, update=None, sites=None) -> APIRouter:
                 variables=payload.variables, status=payload.status,
                 scenario_id=payload.id,
                 pace_min_ms=payload.pace_min_ms,
-                pace_max_ms=payload.pace_max_ms)
+                pace_max_ms=payload.pace_max_ms,
+                device=payload.device)
         except ValueError as fault:
             raise HTTPException(422, str(fault)) from fault
 
